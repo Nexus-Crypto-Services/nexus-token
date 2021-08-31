@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: Unlicensed
 pragma solidity ^0.8.4;
-import "./ContextUpgradable.sol";
-import "./Initializable.sol";
-contract Ownable is ContextUpgradeable  {
+import "./Context.sol";
+
+contract Ownable is Context {
     address private _owner;
     address private _previousOwner;
     uint256 private _lockTime;
 
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
 
-    function __Ownable_init() internal initializer {
-        __Context_init_unchained();
-        __Ownable_init_unchained();
-    }
-
-    function __Ownable_init_unchained() internal initializer {
+    constructor() {
         address msgSender = _msgSender();
         _owner = msgSender;
         emit OwnershipTransferred(address(0), msgSender);
@@ -22,20 +20,24 @@ contract Ownable is ContextUpgradeable  {
 
     function owner() public view returns (address) {
         return _owner;
-    }   
-    
+    }
+
     modifier onlyOwner() {
         require(_owner == _msgSender(), "Ownable: caller is not the owner");
         _;
     }
-    
+
     function renounceOwnership() public virtual onlyOwner {
         emit OwnershipTransferred(_owner, address(0));
         _owner = address(0);
+        _previousOwner = address(0);
     }
 
     function transferOwnership(address newOwner) public virtual onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        require(
+            newOwner != address(0),
+            "Ownable: new owner is the zero address"
+        );
         emit OwnershipTransferred(_owner, newOwner);
         _owner = newOwner;
     }
@@ -43,7 +45,7 @@ contract Ownable is ContextUpgradeable  {
     function getUnlockTime() public view returns (uint256) {
         return _lockTime;
     }
-    
+
     function getTime() public view returns (uint256) {
         return block.timestamp;
     }
@@ -54,10 +56,13 @@ contract Ownable is ContextUpgradeable  {
         _lockTime = block.timestamp + time;
         emit OwnershipTransferred(_owner, address(0));
     }
-    
+
     function unlock() public virtual {
-        require(_previousOwner == msg.sender, "You don't have permission to unlock");
-        require(block.timestamp > _lockTime , "Contract is locked until 7 days");
+        require(
+            _previousOwner == msg.sender,
+            "You don't have permission to unlock"
+        );
+        require(block.timestamp > _lockTime, "Contract not unlocked");
         emit OwnershipTransferred(_owner, _previousOwner);
         _owner = _previousOwner;
     }
