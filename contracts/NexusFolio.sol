@@ -59,7 +59,7 @@ contract NexusFolio is IERC20, Ownable {
     uint256 public lockedBetweenBuys = 5;
     uint256 public lockedBetweenSells = 5;
 
-    event RewardLiquidityProviders(uint256 tokenAmount);
+
 
     event SwapAndLiquify(
         uint256 tokensSwapped,
@@ -71,12 +71,10 @@ contract NexusFolio is IERC20, Ownable {
 
     event SwapTokensForETH(uint256 amountIn, address[] path);
 
-    event UpdateTaxFee(uint256 taxFee, uint256 _previousTaxFee);
+    event UpdateInnovationFee(uint256 innovationFee, uint256 _previousInnovationFee);
     event UpdateLiquidityFee(uint256 liquidityFee, uint256 previous);
-    event UpdateMarketingDivisor(uint256 marketingDivisor, uint256 previous);
-    event UpdateInnovationDivisor(uint256 innovationDivisor, uint256 previous);
-    event UpdateLiquidityDivisor(uint256 liquidityDivisor, uint256 previous);
-    event UpdateMarketingAddress(address marketingAddress, address previous);
+
+ 
     event UpdateInnovationAddress(address innovationAddress, address previous);
     event UpdateLiquidityAddress(address liquidityAddress, address previous);
     event UpdateMinimumTokensBeforeSwap(
@@ -411,7 +409,7 @@ contract NexusFolio is IERC20, Ownable {
 
     function restoreAllFee() private {
         liquidityFee = _previousLiquidityFee;
-        innovationFee = _previousInnovationFee
+        innovationFee = _previousInnovationFee;
     }
 
     function isExcludedFromFee(address account) public view returns (bool) {
