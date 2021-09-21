@@ -12,8 +12,7 @@ import "./IUniswapV2Router02.sol";
 contract NexusFolio is IERC20, Ownable {
     using SafeMath for uint256;
     using Address for address;
-    address payable public marketingAddress =
-        payable(0x7eb1fAb57D9aCEf77403184d81C30a5592b72438);
+
     address payable public innovationAddress =
         payable(0xCc164Ac80cB42aBf31B5f5590571BBdB37fBB139);
     address payable public liquidityAddress =
@@ -21,8 +20,8 @@ contract NexusFolio is IERC20, Ownable {
     address public constant deadAddress =
         0x000000000000000000000000000000000000dEaD;
 
-    mapping(address => uint256) private _rOwned;
-    mapping(address => uint256) private _tOwned;
+    mapping(address => uint256) private _owned;
+
     mapping(address => mapping(address => uint256)) private _allowances;
     mapping(address => bool) private _isExcludedFromFee;
     mapping(address => bool) private _isExcluded;
@@ -31,20 +30,18 @@ contract NexusFolio is IERC20, Ownable {
     address[] private _excluded;
 
     uint256 private constant MAX = ~uint256(0); //that is the max value in the type of uint256
-    uint256 private _tTotal = 1000000000 * 10**3 * 10**9;
-    uint256 private _rTotal = (MAX - (MAX % _tTotal));
+    uint256 private _total = 1000000000 * 10**3 * 10**9;
+
     uint256 private _tFeeTotal;
 
     string private constant _name = "Nexus";
     string private constant _symbol = "$NEXUS";
     uint8 private _decimals = 9;
-    uint256 public taxFee = 3;
-    uint256 private _previousTaxFee = taxFee;
-    uint256 public liquidityFee = 5;
+
+    uint256 public innovationFee = 1;
+    uint256 public liquidityFee = 1;
     uint256 private _previousLiquidityFee = liquidityFee;
-    uint256 public marketingDivisor = 2;
-    uint256 public innovationDivisor = 2;
-    uint256 public liquidityDivisor = 1;
+    uint256 private _previousInnovationFee = innovationFee;
     uint256 public maxTxAmount = 3000000 * 10**3 * 10**9;
 
     uint256 private minimumTokensBeforeSwap = 200 * 10**3 * 10**9;
@@ -102,7 +99,7 @@ contract NexusFolio is IERC20, Ownable {
     constructor() {
         require(owner() != address(0), "NexusFolio: owner must be set");
 
-        _rOwned[_msgSender()] = _rTotal;
+        _owned[_msgSender()] = _total;
 
         // IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(
@@ -117,7 +114,7 @@ contract NexusFolio is IERC20, Ownable {
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
 
-        emit Transfer(address(0), _msgSender(), _tTotal);
+        emit Transfer(address(0), _msgSender(), _total);
     }
 
     function setRouterAddress(address newRouter) public onlyOwner {
@@ -141,12 +138,11 @@ contract NexusFolio is IERC20, Ownable {
     }
 
     function totalSupply() public view override returns (uint256) {
-        return _tTotal;
+        return _total;
     }
 
     function balanceOf(address account) public view override returns (uint256) {
-        if (_isExcluded[account]) return _tOwned[account];
-        return tokenFromReflection(_rOwned[account]);
+        return _owned[account];
     }
 
     function transfer(address recipient, uint256 amount)
@@ -234,68 +230,6 @@ contract NexusFolio is IERC20, Ownable {
         return minimumTokensBeforeSwap;
     }
 
-    function deliver(uint256 tAmount) public onlyOwner {
-        address sender = _msgSender();
-        require(
-            !_isExcluded[sender],
-            "Excluded addresses cannot call this function"
-        );
-        (uint256 rAmount, , , , , ) = _getValues(tAmount);
-        _rOwned[sender] = _rOwned[sender].sub(rAmount);
-        _rTotal = _rTotal.sub(rAmount);
-        _tFeeTotal = _tFeeTotal.add(tAmount);
-    }
-
-    function reflectionFromToken(uint256 tAmount, bool deductTransferFee)
-        public
-        view
-        returns (uint256)
-    {
-        require(tAmount <= _tTotal, "Amount must be less than supply");
-        if (!deductTransferFee) {
-            (uint256 rAmount, , , , , ) = _getValues(tAmount);
-            return rAmount;
-        } else {
-            (, uint256 rTransferAmount, , , , ) = _getValues(tAmount);
-            return rTransferAmount;
-        }
-    }
-
-    function tokenFromReflection(uint256 rAmount)
-        public
-        view
-        returns (uint256)
-    {
-        require(
-            rAmount <= _rTotal,
-            "Amount must be less than total reflections"
-        );
-        uint256 currentRate = _getRate();
-        return rAmount.div(currentRate);
-    }
-
-    function excludeFromReward(address account) public onlyOwner {
-        require(!_isExcluded[account], "Account is already excluded");
-        if (_rOwned[account] > 0) {
-            _tOwned[account] = tokenFromReflection(_rOwned[account]);
-        }
-        _isExcluded[account] = true;
-        _excluded.push(account);
-    }
-
-    function includeInReward(address account) external onlyOwner {
-        require(_isExcluded[account], "Account is not excluded");
-        for (uint256 i = 0; i < _excluded.length; i++) {
-            if (_excluded[i] == account) {
-                _excluded[i] = _excluded[_excluded.length - 1];
-                _tOwned[account] = 0;
-                _isExcluded[account] = false;
-                _excluded.pop();
-                break;
-            }
-        }
-    }
-
     function _approve(
         address owner,
         address spender,
@@ -317,17 +251,20 @@ contract NexusFolio is IERC20, Ownable {
         require(to != address(0), "ERC20: transfer to the zero address");
         require(amount > 0, "Transfer amount must be greater than zero");
         uint256 _timestamp = block.timestamp;
+        bool takeFee = false;
         if (
             to == uniswapV2Pair && // Sell
-            (from != owner() && from != address(this)) &&
-            antiBot
+            (from != owner() && from != address(this))
         ) {
-            uint256 lastSwapTime = _addressToLastSwapTime[from];
-            require(
-                _timestamp - lastSwapTime >= lockedBetweenSells,
-                "Lock time has not been released from last swap"
-            );
-            _addressToLastSwapTime[from] = block.timestamp;
+            takeFee = true;
+            if (antiBot) {
+                uint256 lastSwapTime = _addressToLastSwapTime[from];
+                require(
+                    _timestamp - lastSwapTime >= lockedBetweenSells,
+                    "Lock time has not been released from last swap"
+                );
+                _addressToLastSwapTime[from] = block.timestamp;
+            }
         }
 
         if (
@@ -367,8 +304,6 @@ contract NexusFolio is IERC20, Ownable {
             }
         }
 
-        bool takeFee = true;
-
         //if any account belongs to _isExcludedFromFee account then remove the fee
         if (_isExcludedFromFee[from] || _isExcludedFromFee[to]) {
             takeFee = false;
@@ -378,28 +313,12 @@ contract NexusFolio is IERC20, Ownable {
     }
 
     function swapTokens(uint256 contractTokenBalance) private lockTheSwap {
-        uint256 liqTokens = contractTokenBalance
-            .div(liquidityFee)
-            .mul(liquidityDivisor)
-            .div(2);
+        uint256 liqTokens = contractTokenBalance.div(2);
         swapTokensForEth(contractTokenBalance.sub(liqTokens));
 
-        uint256 maketingBNBShare = address(this).balance.div(liquidityFee).mul(
-            marketingDivisor
-        );
-
-        uint256 innovationBNBShare = address(this)
-            .balance
-            .div(liquidityFee)
-            .mul(innovationDivisor);
-
-        uint256 liquidityBNBShare = address(this)
-            .balance
-            .sub(maketingBNBShare)
-            .sub(maketingBNBShare);
+        uint256 liquidityBNBShare = address(this).balance;
         //Send to Marketing address
-        transferToAddressETH(marketingAddress, maketingBNBShare);
-        transferToAddressETH(innovationAddress, innovationBNBShare);
+
         addLiquidity(liqTokens, liquidityBNBShare);
     }
 
@@ -463,161 +382,36 @@ contract NexusFolio is IERC20, Ownable {
         uint256 amount,
         bool takeFee
     ) private {
-        if (!takeFee) removeAllFee();
-
-        _transferStandard(sender, recipient, amount);
-
-        if (!takeFee) restoreAllFee();
-    }
-
-    function _transferStandard(
-        address sender,
-        address recipient,
-        uint256 tAmount
-    ) private {
-        (
-            uint256 rAmount,
-            uint256 rTransferAmount,
-            uint256 rFee,
-            uint256 tTransferAmount,
-            uint256 tFee,
-            uint256 tLiquidity
-        ) = _getValues(tAmount);
-        _rOwned[sender] = _rOwned[sender].sub(rAmount);
-        _rOwned[recipient] = _rOwned[recipient].add(rTransferAmount);
-        _takeLiquidity(tLiquidity);
-        _reflectFee(rFee, tFee);
-        emit Transfer(sender, recipient, tTransferAmount);
-    }
-
-    function _reflectFee(uint256 rFee, uint256 tFee) private {
-        _rTotal = _rTotal.sub(rFee);
-        _tFeeTotal = _tFeeTotal.add(tFee);
-    }
-
-    function _getValues(uint256 tAmount)
-        private
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256
-        )
-    {
-        (
-            uint256 tTransferAmount,
-            uint256 tFee,
-            uint256 tLiquidity
-        ) = _getTValues(tAmount);
-        (uint256 rAmount, uint256 rTransferAmount, uint256 rFee) = _getRValues(
-            tAmount,
-            tFee,
-            tLiquidity,
-            _getRate()
-        );
-        return (
-            rAmount,
-            rTransferAmount,
-            rFee,
-            tTransferAmount,
-            tFee,
-            tLiquidity
-        );
-    }
-
-    function _getTValues(uint256 tAmount)
-        private
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256
-        )
-    {
-        uint256 tFee = calculateTaxFee(tAmount);
-        uint256 tLiquidity = calculateLiquidityFee(tAmount);
-        uint256 tTransferAmount = tAmount.sub(tFee).sub(tLiquidity);
-        return (tTransferAmount, tFee, tLiquidity);
-    }
-
-    function _getRValues(
-        uint256 tAmount,
-        uint256 tFee,
-        uint256 tLiquidity,
-        uint256 currentRate
-    )
-        private
-        pure
-        returns (
-            uint256,
-            uint256,
-            uint256
-        )
-    {
-        uint256 rAmount = tAmount.mul(currentRate);
-        uint256 rFee = tFee.mul(currentRate);
-        uint256 rLiquidity = tLiquidity.mul(currentRate);
-        uint256 rTransferAmount = rAmount.sub(rFee).sub(rLiquidity);
-        return (rAmount, rTransferAmount, rFee);
-    }
-
-    function _getRate() private view returns (uint256) {
-        (uint256 rSupply, uint256 tSupply) = _getCurrentSupply();
-        return rSupply.div(tSupply);
-    }
-
-    function _getCurrentSupply() private view returns (uint256, uint256) {
-        uint256 rSupply = _rTotal;
-        uint256 tSupply = _tTotal;
-        for (uint256 i = 0; i < _excluded.length; i++) {
-            if (
-                _rOwned[_excluded[i]] > rSupply ||
-                _tOwned[_excluded[i]] > tSupply
-            ) return (_rTotal, _tTotal);
-            rSupply = rSupply.sub(_rOwned[_excluded[i]]);
-            tSupply = tSupply.sub(_tOwned[_excluded[i]]);
+        uint256 transferAmount = amount;
+        if (takeFee) {
+            uint256 liquidity = amount.mul(liquidityFee).div(10**2);
+            uint256 innovation = amount.mul(innovationFee).div(10**2);
+            _owned[address(this)] = _owned[address(this)].add(liquidity);
+            _owned[innovationAddress] = _owned[innovationAddress].add(
+                innovation
+            );
+            transferAmount = transferAmount.sub(liquidity).sub(innovation);
         }
-        if (rSupply < _rTotal.div(_tTotal)) return (_rTotal, _tTotal);
-        return (rSupply, tSupply);
-    }
-
-    function _takeLiquidity(uint256 tLiquidity) private {
-        uint256 currentRate = _getRate();
-        uint256 rLiquidity = tLiquidity.mul(currentRate);
-        _rOwned[address(this)] = _rOwned[address(this)].add(rLiquidity);
-        if (_isExcluded[address(this)])
-            _tOwned[address(this)] = _tOwned[address(this)].add(tLiquidity);
-    }
-
-    function calculateTaxFee(uint256 _amount) private view returns (uint256) {
-        return _amount.mul(taxFee).div(10**2);
-    }
-
-    function calculateLiquidityFee(uint256 _amount)
-        private
-        view
-        returns (uint256)
-    {
-        return _amount.mul(liquidityFee).div(10**2);
+        _owned[sender] = _owned[sender].sub(amount);
+        _owned[recipient] = _owned[recipient].add(transferAmount);
     }
 
     function removeAllFee() private {
-        if (taxFee == 0 && liquidityFee == 0) return;
-
-        _previousTaxFee = taxFee;
-        _previousLiquidityFee = liquidityFee;
-
-        taxFee = 0;
-        liquidityFee = 0;
-        
+        if (liquidityFee != 0) {
+            _previousLiquidityFee = liquidityFee;
+        } else {
+            liquidityFee = 0;
+        }
+        if (innovationFee != 0) {
+            _previousInnovationFee = innovationFee;
+        } else {
+            innovationFee = 0;
+        }
     }
 
     function restoreAllFee() private {
-        taxFee = _previousTaxFee;
         liquidityFee = _previousLiquidityFee;
+        innovationFee = _previousInnovationFee
     }
 
     function isExcludedFromFee(address account) public view returns (bool) {
@@ -632,23 +426,20 @@ contract NexusFolio is IERC20, Ownable {
         _isExcludedFromFee[account] = false;
     }
 
-    function setTaxFeePercent(uint256 newFee) external onlyOwner {
-        taxFee = newFee;
-    }
-
     function setAntiBot(bool enabledDisable) external onlyOwner {
         antiBot = enabledDisable;
     }
 
     function setLiquidityFeePercent(uint256 newFee) external onlyOwner {
-        require(newFee <= 10, "Liquidity fee must be less than 10");
-        require(
-            marketingDivisor.add(innovationDivisor).add(liquidityDivisor) <=
-                newFee,
-            "Sum of divisors must be lower than liquidityFee"
-        );
+        require(newFee <= 5, "Liquidity fee must be less than 10");
 
         liquidityFee = newFee;
+    }
+
+    function setInnovationFeePercent(uint256 newFee) external onlyOwner {
+        require(newFee <= 2, "Liquidity fee must be less than 10");
+
+        innovationFee = newFee;
     }
 
     function setLockTimeBetweenSells(uint256 newLockSeconds)
@@ -673,33 +464,6 @@ contract NexusFolio is IERC20, Ownable {
         maxTxAmount = newMaxTxAmount;
     }
 
-    function setMarketingDivisor(uint256 divisor) external onlyOwner {
-        require(
-            innovationDivisor.add(liquidityDivisor).add(divisor) <=
-                liquidityFee,
-            "Sum of divisors must be lower than liquidityFee"
-        );
-        marketingDivisor = divisor;
-    }
-
-    function setInnovationDivisor(uint256 divisor) external onlyOwner {
-        require(
-            marketingDivisor.add(liquidityDivisor).add(divisor) <= liquidityFee,
-            "Sum of divisors must be lower than liquidityFee"
-        );
-        innovationDivisor = divisor;
-    }
-
-    function setLiquidityDivisor(uint256 divisor) external onlyOwner {
-        require(divisor >= 1, "Divisor must be greater than 1");
-        require(
-            marketingDivisor.add(innovationDivisor).add(divisor) <=
-                liquidityFee,
-            "Sum of divisors must be lower than liquidityFee"
-        );
-        liquidityDivisor = divisor;
-    }
-
     function setNumTokensSellToAddToLiquidity(uint256 _minimumTokensBeforeSwap)
         external
         onlyOwner
@@ -707,12 +471,6 @@ contract NexusFolio is IERC20, Ownable {
         uint256 previous = minimumTokensBeforeSwap;
         minimumTokensBeforeSwap = _minimumTokensBeforeSwap;
         emit UpdateMinimumTokensBeforeSwap(minimumTokensBeforeSwap, previous);
-    }
-
-    function setMarketingAddress(address account) external onlyOwner {
-        address previous = marketingAddress;
-        marketingAddress = payable(account);
-        emit UpdateMarketingAddress(marketingAddress, previous);
     }
 
     function setInnovationAddress(address account) external onlyOwner {
@@ -735,8 +493,7 @@ contract NexusFolio is IERC20, Ownable {
 
     function prepareForPreSale() external onlyOwner {
         setSwapAndLiquifyEnabled(false);
-        // taxFee = 0;
-        // liquidityFee = 0;
+
         removeAllFee();
         maxTxAmount = 1000000000 * 10**6 * 10**9;
         antiBot = false;
@@ -747,8 +504,7 @@ contract NexusFolio is IERC20, Ownable {
 
     function afterPreSale() external onlyOwner {
         setSwapAndLiquifyEnabled(true);
-        // taxFee = 3;
-        // liquidityFee = 5;
+
         restoreAllFee();
         maxTxAmount = 3000000 * 10**6 * 10**9;
         antiBot = true;
