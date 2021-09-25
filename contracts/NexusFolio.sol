@@ -13,10 +13,9 @@ contract NexusFolio is IERC20, Ownable {
     using SafeMath for uint256;
     using Address for address;
 
-    address payable public innovationAddress =
+    address payable public marketingAddress =
         payable(0xCc164Ac80cB42aBf31B5f5590571BBdB37fBB139);
-    address payable public liquidityAddress =
-        payable(0xCc164Ac80cB42aBf31B5f5590571BBdB37fBB139);
+
     address public constant deadAddress =
         0x000000000000000000000000000000000000dEaD;
 
@@ -30,7 +29,7 @@ contract NexusFolio is IERC20, Ownable {
     address[] private _excluded;
 
     uint256 private constant MAX = ~uint256(0); //that is the max value in the type of uint256
-    uint256 private _total = 1000000000 * 10**3 * 10**9;
+    uint256 private _total = 10000000 * 10**9;
 
     uint256 private _tFeeTotal;
 
@@ -38,61 +37,19 @@ contract NexusFolio is IERC20, Ownable {
     string private constant _symbol = "$NEXUS";
     uint8 private _decimals = 9;
 
-    uint256 public innovationFee = 1;
+    uint256 public marketingFee = 1;
     uint256 public liquidityFee = 1;
     uint256 private _previousLiquidityFee = liquidityFee;
-    uint256 private _previousInnovationFee = innovationFee;
-    uint256 public maxTxAmount = 3000000 * 10**3 * 10**9;
-
-    uint256 private minimumTokensBeforeSwap = 200 * 10**3 * 10**9;
+    uint256 private _previousMarketingFee = marketingFee;
+    uint256 public maxTxAmount = 1000000 * 10**9;
 
     IUniswapV2Router02 public uniswapV2Router;
     address public uniswapV2Pair;
 
-    bool inSwapAndLiquify;
-    bool public swapAndLiquifyEnabled = false;
     bool public antiBot = true;
-
-    uint256 public swapAndLiquifyCooldown = 30;
-    uint256 private _lastSwapAndLiquifyTimestap;
 
     uint256 public lockedBetweenBuys = 5;
     uint256 public lockedBetweenSells = 5;
-
-
-
-    event SwapAndLiquify(
-        uint256 tokensSwapped,
-        uint256 ethReceived,
-        uint256 tokensIntoLiqudity
-    );
-
-    event SwapETHForTokens(uint256 amountIn, address[] path);
-
-    event SwapTokensForETH(uint256 amountIn, address[] path);
-
-    event UpdateInnovationFee(uint256 innovationFee, uint256 _previousInnovationFee);
-    event UpdateLiquidityFee(uint256 liquidityFee, uint256 previous);
-
- 
-    event UpdateInnovationAddress(address innovationAddress, address previous);
-    event UpdateLiquidityAddress(address liquidityAddress, address previous);
-    event UpdateMinimumTokensBeforeSwap(
-        uint256 minimumTokensBeforeSwap,
-        uint256 previous
-    );
-    event UpdateMaxTxAmout(uint256 maxTxAmount, uint256 previous);
-    event UpdateSwapAndLiquifyEnabled(bool enabled, bool previous);
-    event UpdateSwapAndLiquifyCooldown(uint256 cooldown, uint256 previous);
-    event UpdateAntibotEnabled(bool enabled, bool previous);
-    event UpdateLockedBetweenBuys(uint256 cooldown, uint256 previous);
-    event UpdateLockedBetweenSells(uint256 cooldown, uint256 previous);
-
-    modifier lockTheSwap() {
-        inSwapAndLiquify = true;
-        _;
-        inSwapAndLiquify = false;
-    }
 
     constructor() {
         require(owner() != address(0), "NexusFolio: owner must be set");
@@ -224,10 +181,6 @@ contract NexusFolio is IERC20, Ownable {
         return _tFeeTotal;
     }
 
-    function minimumTokensBeforeSwapAmount() public view returns (uint256) {
-        return minimumTokensBeforeSwap;
-    }
-
     function _approve(
         address owner,
         address spender,
@@ -285,93 +238,12 @@ contract NexusFolio is IERC20, Ownable {
             );
         }
 
-        if (
-            !inSwapAndLiquify && swapAndLiquifyEnabled && from != uniswapV2Pair
-        ) {
-            uint256 contractTokenBalance = balanceOf(address(this));
-            bool overMinimumTokenBalance = contractTokenBalance >=
-                minimumTokensBeforeSwap;
-
-            bool overCooldownPeriod = _timestamp.sub(
-                _lastSwapAndLiquifyTimestap
-            ) >= swapAndLiquifyCooldown;
-
-            if (overMinimumTokenBalance && overCooldownPeriod) {
-                swapTokens(minimumTokensBeforeSwap);
-                _lastSwapAndLiquifyTimestap = block.timestamp;
-            }
-        }
-
         //if any account belongs to _isExcludedFromFee account then remove the fee
         if (_isExcludedFromFee[from] || _isExcludedFromFee[to]) {
             takeFee = false;
         }
 
         _tokenTransfer(from, to, amount, takeFee);
-    }
-
-    function swapTokens(uint256 contractTokenBalance) private lockTheSwap {
-        uint256 liqTokens = contractTokenBalance.div(2);
-        swapTokensForEth(contractTokenBalance.sub(liqTokens));
-
-        uint256 liquidityBNBShare = address(this).balance;
-        //Send to Marketing address
-
-        addLiquidity(liqTokens, liquidityBNBShare);
-    }
-
-    function swapTokensForEth(uint256 tokenAmount) private {
-        // generate the uniswap pair path of token -> weth
-        address[] memory path = new address[](2);
-        path[0] = address(this);
-        path[1] = uniswapV2Router.WETH();
-
-        _approve(address(this), address(uniswapV2Router), tokenAmount);
-
-        // make the swap
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            tokenAmount,
-            0,
-            path,
-            address(this), // The contract
-            block.timestamp
-        );
-
-        emit SwapTokensForETH(tokenAmount, path);
-    }
-
-    function swapETHForTokens(uint256 amount) private {
-        // generate the uniswap pair path of token -> weth
-        address[] memory path = new address[](2);
-        path[0] = uniswapV2Router.WETH();
-        path[1] = address(this);
-
-        // make the swap
-        uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{
-            value: amount
-        }(
-            0, // accept any amount of Tokens
-            path,
-            deadAddress, // Burn address
-            block.timestamp.add(300)
-        );
-
-        emit SwapETHForTokens(amount, path);
-    }
-
-    function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
-        // approve token transfer to cover all possible scenarios
-        _approve(address(this), address(uniswapV2Router), tokenAmount);
-
-        // add the liquidity
-        uniswapV2Router.addLiquidityETH{value: ethAmount}(
-            address(this),
-            tokenAmount,
-            0, // slippage is unavoidable
-            0, // slippage is unavoidable
-            liquidityAddress,
-            block.timestamp
-        );
     }
 
     function _tokenTransfer(
@@ -383,12 +255,10 @@ contract NexusFolio is IERC20, Ownable {
         uint256 transferAmount = amount;
         if (takeFee) {
             uint256 liquidity = amount.mul(liquidityFee).div(10**2);
-            uint256 innovation = amount.mul(innovationFee).div(10**2);
+            uint256 marketing = amount.mul(marketingFee).div(10**2);
             _owned[address(this)] = _owned[address(this)].add(liquidity);
-            _owned[innovationAddress] = _owned[innovationAddress].add(
-                innovation
-            );
-            transferAmount = transferAmount.sub(liquidity).sub(innovation);
+            _owned[marketingAddress] = _owned[marketingAddress].add(marketing);
+            transferAmount = transferAmount.sub(liquidity).sub(marketing);
         }
         _owned[sender] = _owned[sender].sub(amount);
         _owned[recipient] = _owned[recipient].add(transferAmount);
@@ -400,16 +270,16 @@ contract NexusFolio is IERC20, Ownable {
         } else {
             liquidityFee = 0;
         }
-        if (innovationFee != 0) {
-            _previousInnovationFee = innovationFee;
+        if (marketingFee != 0) {
+            _previousMarketingFee = marketingFee;
         } else {
-            innovationFee = 0;
+            marketingFee = 0;
         }
     }
 
     function restoreAllFee() private {
         liquidityFee = _previousLiquidityFee;
-        innovationFee = _previousInnovationFee;
+        marketingFee = _previousMarketingFee;
     }
 
     function isExcludedFromFee(address account) public view returns (bool) {
@@ -434,66 +304,32 @@ contract NexusFolio is IERC20, Ownable {
         liquidityFee = newFee;
     }
 
-    function setInnovationFeePercent(uint256 newFee) external onlyOwner {
+    function setMarketingFeePercent(uint256 newFee) external onlyOwner {
         require(newFee <= 2, "Liquidity fee must be less than 10");
 
-        innovationFee = newFee;
+        marketingFee = newFee;
     }
 
     function setLockTimeBetweenSells(uint256 newLockSeconds)
         external
         onlyOwner
     {
-        require(newLockSeconds <= 60, "Liquidity fee must be less than 60");
+        require(newLockSeconds <= 15, "Liquidity fee must be less than 15");
         lockedBetweenSells = newLockSeconds;
     }
 
     function setLockTimeBetweenBuys(uint256 newLockSeconds) external onlyOwner {
-        require(newLockSeconds <= 60, "Liquidity fee must be less than 60");
+        require(newLockSeconds <= 15, "Liquidity fee must be less than 15");
         lockedBetweenBuys = newLockSeconds;
-    }
-
-    function setSALCooldown(uint256 newCooldown) external onlyOwner {
-        require(newCooldown >= 10, "Liquidity fee must be greater than 10");
-        swapAndLiquifyCooldown = newCooldown;
     }
 
     function setMaxTxAmount(uint256 newMaxTxAmount) external onlyOwner {
         maxTxAmount = newMaxTxAmount;
     }
 
-    function setNumTokensSellToAddToLiquidity(uint256 _minimumTokensBeforeSwap)
-        external
-        onlyOwner
-    {
-        uint256 previous = minimumTokensBeforeSwap;
-        minimumTokensBeforeSwap = _minimumTokensBeforeSwap;
-        emit UpdateMinimumTokensBeforeSwap(minimumTokensBeforeSwap, previous);
-    }
-
-    function setInnovationAddress(address account) external onlyOwner {
-        address previous = innovationAddress;
-        innovationAddress = payable(account);
-        emit UpdateInnovationAddress(innovationAddress, previous);
-    }
-
-    function setLiquidityAddress(address account) external onlyOwner {
-        address previous = liquidityAddress;
-        liquidityAddress = payable(account);
-        emit UpdateLiquidityAddress(liquidityAddress, previous);
-    }
-
-    function setSwapAndLiquifyEnabled(bool enabledDisable) public onlyOwner {
-        bool previous = swapAndLiquifyEnabled;
-        swapAndLiquifyEnabled = enabledDisable;
-        emit UpdateSwapAndLiquifyEnabled(enabledDisable, previous);
-    }
-
     function prepareForPreSale() external onlyOwner {
-        setSwapAndLiquifyEnabled(false);
-
         removeAllFee();
-        maxTxAmount = 1000000000 * 10**6 * 10**9;
+        maxTxAmount = 5000000 * 10**9;
         antiBot = false;
 
         lockedBetweenBuys = 0;
@@ -501,22 +337,23 @@ contract NexusFolio is IERC20, Ownable {
     }
 
     function afterPreSale() external onlyOwner {
-        setSwapAndLiquifyEnabled(true);
-
         restoreAllFee();
-        maxTxAmount = 3000000 * 10**6 * 10**9;
+        maxTxAmount = 1000000 * 10**9;
         antiBot = true;
 
         lockedBetweenBuys = 5;
         lockedBetweenSells = 5;
     }
 
-    function transferToAddressETH(address payable recipient, uint256 amount)
-        private
-    {
-        recipient.transfer(amount);
-    }
-
-    //to recieve ETH from uniswapV2Router when swaping
-    receive() external payable {}
+    event UpdateMarketingFee(
+        uint256 marketingFee,
+        uint256 _previousMarketingFee
+    );
+    event UpdateLiquidityFee(uint256 liquidityFee, uint256 previous);
+    event UpdateMarketingAddress(address marketingAddress, address previous);
+    event UpdateLiquidityAddress(address liquidityAddress, address previous);
+    event UpdateMaxTxAmout(uint256 maxTxAmount, uint256 previous);
+    event UpdateAntibotEnabled(bool enabled, bool previous);
+    event UpdateLockedBetweenBuys(uint256 cooldown, uint256 previous);
+    event UpdateLockedBetweenSells(uint256 cooldown, uint256 previous);
 }
