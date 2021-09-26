@@ -13,9 +13,6 @@ contract NexusFolio is IERC20, Ownable {
     using SafeMath for uint256;
     using Address for address;
 
-    address payable public marketingAddress =
-        payable(0xCc164Ac80cB42aBf31B5f5590571BBdB37fBB139);
-
     address public constant deadAddress =
         0x000000000000000000000000000000000000dEaD;
 
@@ -27,20 +24,19 @@ contract NexusFolio is IERC20, Ownable {
     mapping(address => uint256) private _addressToLastSwapTime;
 
     address[] private _excluded;
-
+    address marketAddress;
     uint256 private constant MAX = ~uint256(0); //that is the max value in the type of uint256
     uint256 private _total = 10000000 * 10**9;
 
     uint256 private _tFeeTotal;
 
-    string private constant _name = "Nexus";
-    string private constant _symbol = "$NEXUS";
+    string private constant _name = "NexusTest";
+    string private constant _symbol = "$NEXUSTEST";
     uint8 private _decimals = 9;
 
-    uint256 public marketingFee = 1;
-    uint256 public liquidityFee = 1;
-    uint256 private _previousLiquidityFee = liquidityFee;
-    uint256 private _previousMarketingFee = marketingFee;
+    uint256 public marketFee = 2;
+
+    uint256 private _previousMarketFee = marketFee;
     uint256 public maxTxAmount = 1000000 * 10**9;
 
     IUniswapV2Router02 public uniswapV2Router;
@@ -51,21 +47,19 @@ contract NexusFolio is IERC20, Ownable {
     uint256 public lockedBetweenBuys = 5;
     uint256 public lockedBetweenSells = 5;
 
-    constructor() {
+    constructor(address uniswap) {
         require(owner() != address(0), "NexusFolio: owner must be set");
 
         _owned[_msgSender()] = _total;
-
+        // 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3
         // IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(
-            0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3
-        ); //testNet
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(uniswap); //testNet
 
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
             .createPair(address(this), _uniswapV2Router.WETH());
 
         uniswapV2Router = _uniswapV2Router;
-
+        marketAddress = owner();
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
 
@@ -254,32 +248,29 @@ contract NexusFolio is IERC20, Ownable {
     ) private {
         uint256 transferAmount = amount;
         if (takeFee) {
-            uint256 liquidity = amount.mul(liquidityFee).div(10**2);
-            uint256 marketing = amount.mul(marketingFee).div(10**2);
-            _owned[address(this)] = _owned[address(this)].add(liquidity);
-            _owned[marketingAddress] = _owned[marketingAddress].add(marketing);
-            transferAmount = transferAmount.sub(liquidity).sub(marketing);
+            uint256 market = amount.mul(marketFee).div(10**2);
+
+            _owned[marketAddress] = _owned[marketAddress].add(market);
+            transferAmount = transferAmount.sub(market);
         }
         _owned[sender] = _owned[sender].sub(amount);
         _owned[recipient] = _owned[recipient].add(transferAmount);
     }
 
     function removeAllFee() private {
-        if (liquidityFee != 0) {
-            _previousLiquidityFee = liquidityFee;
+        if (marketFee != 0) {
+            _previousMarketFee = marketFee;
         } else {
-            liquidityFee = 0;
+            marketFee = 0;
         }
-        if (marketingFee != 0) {
-            _previousMarketingFee = marketingFee;
-        } else {
-            marketingFee = 0;
-        }
+
+        emit UpdateMarketFee(marketFee, _previousMarketFee);
     }
 
     function restoreAllFee() private {
-        liquidityFee = _previousLiquidityFee;
-        marketingFee = _previousMarketingFee;
+        marketFee = _previousMarketFee;
+
+        emit UpdateMarketFee(marketFee, _previousMarketFee);
     }
 
     function isExcludedFromFee(address account) public view returns (bool) {
@@ -294,20 +285,17 @@ contract NexusFolio is IERC20, Ownable {
         _isExcludedFromFee[account] = false;
     }
 
-    function setAntiBot(bool enabledDisable) external onlyOwner {
-        antiBot = enabledDisable;
+    function setAntiBot() external onlyOwner {
+        antiBot = !antiBot;
+
+        emit UpdateAntibotEnabled( antiBot);
     }
 
-    function setLiquidityFeePercent(uint256 newFee) external onlyOwner {
-        require(newFee <= 5, "Liquidity fee must be less than 10");
-
-        liquidityFee = newFee;
-    }
-
-    function setMarketingFeePercent(uint256 newFee) external onlyOwner {
-        require(newFee <= 2, "Liquidity fee must be less than 10");
-
-        marketingFee = newFee;
+    function setMarketFeePercent(uint256 newFee) external onlyOwner {
+        require(newFee <= 5, "Liquidity fee must be less than 5");
+        _previousMarketFee = marketFee;
+        marketFee = newFee;
+        emit UpdateMarketFee(marketFee, _previousMarketFee);
     }
 
     function setLockTimeBetweenSells(uint256 newLockSeconds)
@@ -315,12 +303,17 @@ contract NexusFolio is IERC20, Ownable {
         onlyOwner
     {
         require(newLockSeconds <= 15, "Liquidity fee must be less than 15");
+        uint256 _previous = lockedBetweenSells;
         lockedBetweenSells = newLockSeconds;
+
+        emit UpdateLockedBetweenSells(lockedBetweenSells, _previous);
     }
 
     function setLockTimeBetweenBuys(uint256 newLockSeconds) external onlyOwner {
         require(newLockSeconds <= 15, "Liquidity fee must be less than 15");
+        uint256 _previous = lockedBetweenBuys;
         lockedBetweenBuys = newLockSeconds;
+        emit UpdateLockedBetweenBuys(lockedBetweenBuys, _previous);
     }
 
     function setMaxTxAmount(uint256 newMaxTxAmount) external onlyOwner {
@@ -345,15 +338,18 @@ contract NexusFolio is IERC20, Ownable {
         lockedBetweenSells = 5;
     }
 
-    event UpdateMarketingFee(
-        uint256 marketingFee,
-        uint256 _previousMarketingFee
-    );
-    event UpdateLiquidityFee(uint256 liquidityFee, uint256 previous);
-    event UpdateMarketingAddress(address marketingAddress, address previous);
-    event UpdateLiquidityAddress(address liquidityAddress, address previous);
+    function setMarketAddress(address market) public onlyOwner {
+        address _previousMarketAddress = marketAddress;
+        marketAddress = market;
+        emit UpdateMarketAddress(marketAddress, _previousMarketAddress);
+    }
+
+    event UpdateMarketFee(uint256 marketFee, uint256 _previousMarketFee);
+
+    event UpdateMarketAddress(address marketAddress, address previous);
+
     event UpdateMaxTxAmout(uint256 maxTxAmount, uint256 previous);
-    event UpdateAntibotEnabled(bool enabled, bool previous);
+    event UpdateAntibotEnabled(bool enabled);
     event UpdateLockedBetweenBuys(uint256 cooldown, uint256 previous);
     event UpdateLockedBetweenSells(uint256 cooldown, uint256 previous);
 }
