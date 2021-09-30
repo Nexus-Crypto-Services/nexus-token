@@ -9,7 +9,7 @@ import "./IERC20.sol";
 import "./IUniswapV2Pair.sol";
 import "./IUniswapV2Router02.sol";
 
-contract NexusFolio is IERC20, Ownable {
+contract Nexus is IERC20, Ownable {
     using SafeMath for uint256;
     using Address for address;
 
@@ -30,11 +30,11 @@ contract NexusFolio is IERC20, Ownable {
 
     uint256 private _tFeeTotal;
 
-    string private constant _name = "NexusTest";
-    string private constant _symbol = "$NEXUSTEST";
+    string private constant _name = "Nexus";
+    string private constant _symbol = "$NEXUS";
     uint8 private _decimals = 9;
 
-    uint256 public marketFee = 2;
+    uint256 public marketFee = 5;
 
     uint256 private _previousMarketFee = marketFee;
     uint256 public maxTxAmount = 1000000 * 10**9;
@@ -48,12 +48,10 @@ contract NexusFolio is IERC20, Ownable {
     uint256 public lockedBetweenSells = 5;
 
     constructor(address uniswap) {
-        require(owner() != address(0), "NexusFolio: owner must be set");
+        require(owner() != address(0), "Nexus: owner must be set");
 
         _owned[_msgSender()] = _total;
-        // 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3
-        // IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(uniswap); //testNet
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(uniswap); 
 
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
             .createPair(address(this), _uniswapV2Router.WETH());
@@ -167,9 +165,6 @@ contract NexusFolio is IERC20, Ownable {
         return true;
     }
 
-    function isExcludedFromReward(address account) public view returns (bool) {
-        return _isExcluded[account];
-    }
 
     function totalFees() public view returns (uint256) {
         return _tFeeTotal;
@@ -196,12 +191,12 @@ contract NexusFolio is IERC20, Ownable {
         require(to != address(0), "ERC20: transfer to the zero address");
         require(amount > 0, "Transfer amount must be greater than zero");
         uint256 _timestamp = block.timestamp;
-        bool takeFee = false;
+        bool takeFee = true;
         if (
             to == uniswapV2Pair && // Sell
             (from != owner() && from != address(this))
         ) {
-            takeFee = true;
+
             if (antiBot) {
                 uint256 lastSwapTime = _addressToLastSwapTime[from];
                 require(
@@ -252,9 +247,11 @@ contract NexusFolio is IERC20, Ownable {
 
             _owned[marketAddress] = _owned[marketAddress].add(market);
             transferAmount = transferAmount.sub(market);
+            emit Transfer(sender, marketAddress, market);
         }
         _owned[sender] = _owned[sender].sub(amount);
         _owned[recipient] = _owned[recipient].add(transferAmount);
+        emit Transfer(sender, recipient, transferAmount);
     }
 
     function removeAllFee() private {
@@ -292,7 +289,7 @@ contract NexusFolio is IERC20, Ownable {
     }
 
     function setMarketFeePercent(uint256 newFee) external onlyOwner {
-        require(newFee <= 5, "Liquidity fee must be less than 5");
+        require(newFee <= 5, "Marketing fee must be less than 5");
         _previousMarketFee = marketFee;
         marketFee = newFee;
         emit UpdateMarketFee(marketFee, _previousMarketFee);
@@ -302,7 +299,7 @@ contract NexusFolio is IERC20, Ownable {
         external
         onlyOwner
     {
-        require(newLockSeconds <= 15, "Liquidity fee must be less than 15");
+        require(newLockSeconds <= 15, "Time between sells must be less than 15 seconds");
         uint256 _previous = lockedBetweenSells;
         lockedBetweenSells = newLockSeconds;
 
@@ -310,7 +307,7 @@ contract NexusFolio is IERC20, Ownable {
     }
 
     function setLockTimeBetweenBuys(uint256 newLockSeconds) external onlyOwner {
-        require(newLockSeconds <= 15, "Liquidity fee must be less than 15");
+        require(newLockSeconds <= 15, "Time between buys be less than 15 seconds");
         uint256 _previous = lockedBetweenBuys;
         lockedBetweenBuys = newLockSeconds;
         emit UpdateLockedBetweenBuys(lockedBetweenBuys, _previous);
