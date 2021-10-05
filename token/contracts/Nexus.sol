@@ -20,7 +20,6 @@ contract Nexus is IERC20, Ownable {
 
     mapping(address => mapping(address => uint256)) private _allowances;
     mapping(address => bool) private _isExcludedFromFee;
-    mapping(address => bool) private _isExcluded;
     mapping(address => uint256) private _addressToLastSwapTime;
 
     address[] private _excluded;
@@ -37,7 +36,7 @@ contract Nexus is IERC20, Ownable {
     uint256 public marketFee = 5;
 
     uint256 private _previousMarketFee = marketFee;
-    uint256 public maxTxAmount = 1000000 * 10**9;
+    uint256 public maxTxAmount = 100000 * 10**9;
 
     IUniswapV2Router02 public uniswapV2Router;
     address public uniswapV2Pair;
@@ -46,6 +45,9 @@ contract Nexus is IERC20, Ownable {
 
     uint256 public lockedBetweenBuys = 5;
     uint256 public lockedBetweenSells = 5;
+
+    bool isInPresale = false;
+    bool presaleDone = false;
 
     constructor(address uniswap) {
         require(owner() != address(0), "Nexus: owner must be set");
@@ -257,9 +259,9 @@ contract Nexus is IERC20, Ownable {
     function removeAllFee() private {
         if (marketFee != 0) {
             _previousMarketFee = marketFee;
-        } else {
+        } 
             marketFee = 0;
-        }
+        
 
         emit UpdateMarketFee(marketFee, _previousMarketFee);
     }
@@ -318,21 +320,30 @@ contract Nexus is IERC20, Ownable {
     }
 
     function prepareForPreSale() external onlyOwner {
+        require(!presaleDone, "Presale already done");
+        
         removeAllFee();
-        maxTxAmount = 5000000 * 10**9;
+        maxTxAmount = 2000000* 10**9;
         antiBot = false;
 
         lockedBetweenBuys = 0;
         lockedBetweenSells = 0;
+
+        isInPresale = true;
     }
 
     function afterPreSale() external onlyOwner {
+        require(isInPresale, "Not in presale phase");
+
         restoreAllFee();
-        maxTxAmount = 1000000 * 10**9;
+        maxTxAmount = 40000 * 10**9;
         antiBot = true;
 
-        lockedBetweenBuys = 5;
-        lockedBetweenSells = 5;
+        lockedBetweenBuys = 15;
+        lockedBetweenSells = 15;
+        
+        isInPresale = false;
+        presaleDone = true;
     }
 
     function setMarketAddress(address market) public onlyOwner {
