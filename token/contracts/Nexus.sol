@@ -53,7 +53,7 @@ contract Nexus is IERC20, Ownable {
         require(owner() != address(0), "Nexus: owner must be set");
 
         _owned[_msgSender()] = _total;
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(uniswap); 
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(uniswap);
 
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
             .createPair(address(this), _uniswapV2Router.WETH());
@@ -167,7 +167,6 @@ contract Nexus is IERC20, Ownable {
         return true;
     }
 
-
     function totalFees() public view returns (uint256) {
         return _tFeeTotal;
     }
@@ -193,32 +192,35 @@ contract Nexus is IERC20, Ownable {
         require(to != address(0), "ERC20: transfer to the zero address");
         require(amount > 0, "Transfer amount must be greater than zero");
         uint256 _timestamp = block.timestamp;
-        bool takeFee = true;
+        bool takeFee = false;
         if (
             to == uniswapV2Pair && // Sell
             (from != owner() && from != address(this))
         ) {
-
+            takeFee = true;
             if (antiBot) {
                 uint256 lastSwapTime = _addressToLastSwapTime[from];
                 require(
                     _timestamp - lastSwapTime >= lockedBetweenSells,
                     "Lock time has not been released from last swap"
                 );
-                _addressToLastSwapTime[from] = block.timestamp;
             }
+            _addressToLastSwapTime[from] = block.timestamp;
         }
 
         if (
-            from == uniswapV2Pair && // buys
-            (to != owner() && to != address(this)) &&
-            antiBot
+            from == uniswapV2Pair && // Buys
+            (to != owner() && to != address(this))
         ) {
-            uint256 lastSwapTime = _addressToLastSwapTime[to];
-            require(
-                _timestamp - lastSwapTime >= lockedBetweenBuys,
-                "Lock time has not been released from last swap"
-            );
+            takeFee = true;
+            if (antiBot) {
+                uint256 lastSwapTime = _addressToLastSwapTime[to];
+                require(
+                    _timestamp - lastSwapTime >= lockedBetweenBuys,
+                    "Lock time has not been released from last swap"
+                );
+            }
+
             _addressToLastSwapTime[to] = block.timestamp;
         }
 
@@ -259,9 +261,8 @@ contract Nexus is IERC20, Ownable {
     function removeAllFee() private {
         if (marketFee != 0) {
             _previousMarketFee = marketFee;
-        } 
-            marketFee = 0;
-        
+        }
+        marketFee = 0;
 
         emit UpdateMarketFee(marketFee, _previousMarketFee);
     }
@@ -287,7 +288,7 @@ contract Nexus is IERC20, Ownable {
     function setAntiBot() external onlyOwner {
         antiBot = !antiBot;
 
-        emit UpdateAntibotEnabled( antiBot);
+        emit UpdateAntibotEnabled(antiBot);
     }
 
     function setMarketFeePercent(uint256 newFee) external onlyOwner {
@@ -301,7 +302,10 @@ contract Nexus is IERC20, Ownable {
         external
         onlyOwner
     {
-        require(newLockSeconds <= 15, "Time between sells must be less than 15 seconds");
+        require(
+            newLockSeconds <= 15,
+            "Time between sells must be less than 15 seconds"
+        );
         uint256 _previous = lockedBetweenSells;
         lockedBetweenSells = newLockSeconds;
 
@@ -309,7 +313,10 @@ contract Nexus is IERC20, Ownable {
     }
 
     function setLockTimeBetweenBuys(uint256 newLockSeconds) external onlyOwner {
-        require(newLockSeconds <= 15, "Time between buys be less than 15 seconds");
+        require(
+            newLockSeconds <= 15,
+            "Time between buys be less than 15 seconds"
+        );
         uint256 _previous = lockedBetweenBuys;
         lockedBetweenBuys = newLockSeconds;
         emit UpdateLockedBetweenBuys(lockedBetweenBuys, _previous);
@@ -321,9 +328,9 @@ contract Nexus is IERC20, Ownable {
 
     function prepareForPreSale() external onlyOwner {
         require(!presaleDone, "Presale already done");
-        
+
         removeAllFee();
-        maxTxAmount = 2000000* 10**9;
+        maxTxAmount = 2000000 * 10**9;
         antiBot = false;
 
         lockedBetweenBuys = 0;
@@ -341,7 +348,7 @@ contract Nexus is IERC20, Ownable {
 
         lockedBetweenBuys = 15;
         lockedBetweenSells = 15;
-        
+
         isInPresale = false;
         presaleDone = true;
     }
