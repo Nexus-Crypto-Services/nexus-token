@@ -16,62 +16,56 @@ contract Nexus is IERC20, Ownable {
     address public constant deadAddress =
         0x000000000000000000000000000000000000dEaD;
 
-    mapping(address => uint256) private _owned;
+    string private constant _name = "Nexus";
+    string private constant _symbol = "$NEXUS";
 
     mapping(address => mapping(address => uint256)) private _allowances;
     mapping(address => bool) private _isExcludedFromFee;
     mapping(address => uint256) private _addressToLastSwapTime;
+    mapping(address => bool) private _vipList;
+    mapping(address => bool) private _antibotlist;
+    mapping(address => uint256) private _owned;
 
-    address[] private _excluded;
-    address marketAddress;
-    uint256 private constant MAX = ~uint256(0); //that is the max value in the type of uint256
-    uint256 private _total = 10000000 * 10**9;
-
-    uint256 private _tFeeTotal;
-
-    string private constant _name = "Nexus";
-    string private constant _symbol = "$NEXUS";
-    uint8 private _decimals = 9;
-
-    uint256 public marketFee = 5;
-
-    uint256 private _previousMarketFee = marketFee;
-    uint256 public maxTxAmount = 100000 * 10**9;
+    uint8 private _decimals = 18;
+    uint256 private _total = 10000000 * 10**_decimals;
+    uint256 public maxTxAmount = 100000 * 10**_decimals;
 
     IUniswapV2Router02 public uniswapV2Router;
     address public uniswapV2Pair;
 
-    bool public antiBot = true;
+    uint256 public marketFee = 5;
+    uint256 private _previousMarketFee = marketFee;
 
-    uint256 public lockedBetweenBuys = 5;
-    uint256 public lockedBetweenSells = 5;
+    uint256 public lockedBetweenBuys = 15;
+    uint256 public lockedBetweenSells = 15;
 
-    bool isInPresale = false;
-    bool presaleDone = false;
+    bool private antiBot = true;
+    bool private isInPresale = false;
+    bool private presaleDone = false;
+    bool private pauseMerket = false;
+    bool private onlyVipMarket = false;
+
+    uint256 private openAllMerketTime;
+
+    address marketAddress;
 
     constructor(address uniswap) {
         require(owner() != address(0), "Nexus: owner must be set");
 
         _owned[_msgSender()] = _total;
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(uniswap);
 
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(uniswap);
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
             .createPair(address(this), _uniswapV2Router.WETH());
-
         uniswapV2Router = _uniswapV2Router;
+
         marketAddress = owner();
+
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
+        _vipList[owner()] = true;
 
         emit Transfer(address(0), _msgSender(), _total);
-    }
-
-    function setRouterAddress(address newRouter) public onlyOwner {
-        IUniswapV2Router02 _newPancakeRouter = IUniswapV2Router02(newRouter);
-
-        uniswapV2Pair = IUniswapV2Factory(_newPancakeRouter.factory())
-            .createPair(address(this), _newPancakeRouter.WETH());
-        uniswapV2Router = _newPancakeRouter;
     }
 
     function name() public pure returns (string memory) {
@@ -102,16 +96,9 @@ contract Nexus is IERC20, Ownable {
         _transfer(_msgSender(), recipient, amount);
         return true;
     }
-
-    function allowance(address owner, address spender)
-        public
-        view
-        override
-        returns (uint256)
-    {
-        return _allowances[owner][spender];
+    function isExcludedFromFee(address account) public view returns (bool) {
+        return _isExcludedFromFee[account];
     }
-
     function approve(address spender, uint256 amount)
         public
         override
@@ -136,6 +123,15 @@ contract Nexus is IERC20, Ownable {
             )
         );
         return true;
+    }
+
+    function allowance(address owner, address spender)
+        public
+        view
+        override
+        returns (uint256)
+    {
+        return _allowances[owner][spender];
     }
 
     function increaseAllowance(address spender, uint256 addedValue)
@@ -167,8 +163,173 @@ contract Nexus is IERC20, Ownable {
         return true;
     }
 
-    function totalFees() public view returns (uint256) {
-        return _tFeeTotal;
+
+
+
+
+    function marketStatus() public view onlyOwner returns (bool, bool) {
+        return (pauseMerket, onlyVipMarket);
+    }
+
+
+    function isVIP(address vipAddress) public view onlyOwner returns (bool) {
+        return _vipList[vipAddress];
+    }
+
+    function isAntibotListed(address antibotlistAddress)
+        public
+        view
+        onlyOwner
+        returns (bool)
+    {
+        return _antibotlist[antibotlistAddress];
+    }
+
+    function addToVIP(address[] memory vipAddress) public onlyOwner {
+        for (uint256 i = 0; i < vipAddress.length; i++) {
+            address vip = vipAddress[i];
+            if (!_antibotlist[vip]) {
+                _vipList[vip] = true;
+            }
+        }
+    }
+
+    function removeFromVIP(address[] memory vipAddress) public onlyOwner {
+        for (uint256 i = 0; i < vipAddress.length; i++) {
+            address vip = vipAddress[i];
+            _vipList[vip] = false;
+        }
+    }
+
+    function addToantibotlist(address[] memory antibotlistAddress)
+        public
+        onlyOwner
+    {
+        removeFromVIP(antibotlistAddress);
+        for (uint256 i = 0; i < antibotlistAddress.length; i++) {
+            address antibotlist = antibotlistAddress[i];
+            _antibotlist[antibotlist] = true;
+        }
+    }
+
+    function removeFromantibotlist(address[] memory antibotlistAddress)
+        public
+        onlyOwner
+    {
+        for (uint256 i = 0; i < antibotlistAddress.length; i++) {
+            address antibotlist = antibotlistAddress[i];
+            _antibotlist[antibotlist] = false;
+        }
+    }
+
+    function togglePauseMarket() public onlyOwner returns (bool) {
+        pauseMerket = !pauseMerket;
+        return pauseMerket;
+    }
+
+    function toggleVipMarket() public onlyOwner returns (bool) {
+        onlyVipMarket = !onlyVipMarket;
+        return onlyVipMarket;
+    }
+
+
+
+
+
+
+    function excludeFromFee(address account) external onlyOwner {
+        _isExcludedFromFee[account] = true;
+    }
+
+    function includeInFee(address account) external onlyOwner {
+        _isExcludedFromFee[account] = false;
+    }
+
+    function toggleAntiBot() external onlyOwner {
+        antiBot = !antiBot;
+
+        emit UpdateAntibotEnabled(antiBot);
+    }
+
+
+    function setLockTimeBetweenSells(uint256 newLockSeconds)
+        external
+        onlyOwner
+    {
+        require(
+            newLockSeconds <= 30,
+            "Time between sells must be less than 30 seconds"
+        );
+        uint256 _previous = lockedBetweenSells;
+        lockedBetweenSells = newLockSeconds;
+
+        emit UpdateLockedBetweenSells(lockedBetweenSells, _previous);
+    }
+
+    function setLockTimeBetweenBuys(uint256 newLockSeconds) external onlyOwner {
+        require(
+            newLockSeconds <= 30,
+            "Time between buys be less than 30 seconds"
+        );
+        uint256 _previous = lockedBetweenBuys;
+        lockedBetweenBuys = newLockSeconds;
+        emit UpdateLockedBetweenBuys(lockedBetweenBuys, _previous);
+    }
+
+    function setMaxTxAmount(uint256 newMaxTxAmount) external onlyOwner {
+        maxTxAmount = newMaxTxAmount;
+    }
+
+    function setRouterAddress(address newRouter) public onlyOwner {
+        IUniswapV2Router02 _newPancakeRouter = IUniswapV2Router02(newRouter);
+
+        uniswapV2Pair = IUniswapV2Factory(_newPancakeRouter.factory())
+            .createPair(address(this), _newPancakeRouter.WETH());
+        uniswapV2Router = _newPancakeRouter;
+    }
+
+    function setMarketAddress(address market) public onlyOwner {
+        address _previousMarketAddress = marketAddress;
+        marketAddress = market;
+        emit UpdateMarketAddress(marketAddress, _previousMarketAddress);
+    }
+
+    function setMarketFeePercent(uint256 newFee) external onlyOwner {
+        require(newFee <= 5, "Marketing fee must be less than 5");
+        _previousMarketFee = marketFee;
+        marketFee = newFee;
+        emit UpdateMarketFee(marketFee, _previousMarketFee);
+    }
+    function prepareForPreSale() external onlyOwner {
+        require(!presaleDone, "Presale already done");
+
+        removeAllFee();
+        maxTxAmount = 2000000 * 10**_decimals;
+        antiBot = false;
+
+        lockedBetweenBuys = 0;
+        lockedBetweenSells = 0;
+
+        isInPresale = true;
+
+        onlyVipMarket = true;
+    }
+
+    function afterPreSale() external onlyOwner {
+        require(isInPresale, "Not in presale phase");
+
+        restoreAllFee();
+
+        maxTxAmount = 15000 * 10**_decimals;
+        antiBot = true;
+
+        lockedBetweenBuys = 15;
+        lockedBetweenSells = 15;
+
+        isInPresale = false;
+        presaleDone = true;
+
+        openAllMerketTime = block.timestamp + 5 * 60;
     }
 
     function _approve(
@@ -189,14 +350,27 @@ contract Nexus is IERC20, Ownable {
         uint256 amount
     ) private {
         require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
+
         require(amount > 0, "Transfer amount must be greater than zero");
+        require(
+            !pauseMerket,
+            "The Market is paused, transactions are not allowed"
+        );
+        require(
+            !_antibotlist[from] && !_antibotlist[to],
+            "Addresses cannot be antibotlisted"
+        );
+
         uint256 _timestamp = block.timestamp;
+
         bool takeFee = false;
+
         if (
             to == uniswapV2Pair && // Sell
             (from != owner() && from != address(this))
         ) {
+            require(!isInPresale, "Presale not ended");
+
             takeFee = true;
             if (antiBot) {
                 uint256 lastSwapTime = _addressToLastSwapTime[from];
@@ -212,7 +386,17 @@ contract Nexus is IERC20, Ownable {
             from == uniswapV2Pair && // Buys
             (to != owner() && to != address(this))
         ) {
+            require(!isInPresale, "Presale not ended");
+
+            if (onlyVipMarket && openAllMerketTime <= block.timestamp) {
+                require(
+                    _vipList[to],
+                    "This address is not a VIP. Transaction forbidden"
+                );
+            }
+
             takeFee = true;
+
             if (antiBot) {
                 uint256 lastSwapTime = _addressToLastSwapTime[to];
                 require(
@@ -273,98 +457,12 @@ contract Nexus is IERC20, Ownable {
         emit UpdateMarketFee(marketFee, _previousMarketFee);
     }
 
-    function isExcludedFromFee(address account) public view returns (bool) {
-        return _isExcludedFromFee[account];
-    }
-
-    function excludeFromFee(address account) external onlyOwner {
-        _isExcludedFromFee[account] = true;
-    }
-
-    function includeInFee(address account) external onlyOwner {
-        _isExcludedFromFee[account] = false;
-    }
-
-    function setAntiBot() external onlyOwner {
-        antiBot = !antiBot;
-
-        emit UpdateAntibotEnabled(antiBot);
-    }
-
-    function setMarketFeePercent(uint256 newFee) external onlyOwner {
-        require(newFee <= 5, "Marketing fee must be less than 5");
-        _previousMarketFee = marketFee;
-        marketFee = newFee;
-        emit UpdateMarketFee(marketFee, _previousMarketFee);
-    }
-
-    function setLockTimeBetweenSells(uint256 newLockSeconds)
-        external
-        onlyOwner
-    {
-        require(
-            newLockSeconds <= 15,
-            "Time between sells must be less than 15 seconds"
-        );
-        uint256 _previous = lockedBetweenSells;
-        lockedBetweenSells = newLockSeconds;
-
-        emit UpdateLockedBetweenSells(lockedBetweenSells, _previous);
-    }
-
-    function setLockTimeBetweenBuys(uint256 newLockSeconds) external onlyOwner {
-        require(
-            newLockSeconds <= 15,
-            "Time between buys be less than 15 seconds"
-        );
-        uint256 _previous = lockedBetweenBuys;
-        lockedBetweenBuys = newLockSeconds;
-        emit UpdateLockedBetweenBuys(lockedBetweenBuys, _previous);
-    }
-
-    function setMaxTxAmount(uint256 newMaxTxAmount) external onlyOwner {
-        maxTxAmount = newMaxTxAmount;
-    }
-
-    function prepareForPreSale() external onlyOwner {
-        require(!presaleDone, "Presale already done");
-
-        removeAllFee();
-        maxTxAmount = 2000000 * 10**9;
-        antiBot = false;
-
-        lockedBetweenBuys = 0;
-        lockedBetweenSells = 0;
-
-        isInPresale = true;
-    }
-
-    function afterPreSale() external onlyOwner {
-        require(isInPresale, "Not in presale phase");
-
-        restoreAllFee();
-        maxTxAmount = 40000 * 10**9;
-        antiBot = true;
-
-        lockedBetweenBuys = 15;
-        lockedBetweenSells = 15;
-
-        isInPresale = false;
-        presaleDone = true;
-    }
-
-    function setMarketAddress(address market) public onlyOwner {
-        address _previousMarketAddress = marketAddress;
-        marketAddress = market;
-        emit UpdateMarketAddress(marketAddress, _previousMarketAddress);
-    }
 
     event UpdateMarketFee(uint256 marketFee, uint256 _previousMarketFee);
-
     event UpdateMarketAddress(address marketAddress, address previous);
-
     event UpdateMaxTxAmout(uint256 maxTxAmount, uint256 previous);
     event UpdateAntibotEnabled(bool enabled);
     event UpdateLockedBetweenBuys(uint256 cooldown, uint256 previous);
     event UpdateLockedBetweenSells(uint256 cooldown, uint256 previous);
 }
+
