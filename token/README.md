@@ -16,6 +16,18 @@ Create a new file named `.apKey` in the main directory and write the api-key fro
 
 ** After the deploy on the Main Net is advised to transfer the contract to a safe such gnosis safe (refer to [this](https://forum.openzeppelin.com/t/openzeppelin-upgrades-step-by-step-tutorial-for-hardhat/3580))
 
+## Test
+
+### Local
+
+
+
+ganache-cli --fork https://bsc-dataseed1.defibit.io/ -m "$(<.local)"
+
+npx truffle test --network development
+
+### Testnet
+
 ## Deploy
 
     npx truffle migrate --network {NetworkName} --to 1

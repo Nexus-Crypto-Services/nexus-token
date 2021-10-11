@@ -36,21 +36,24 @@ contract Nexus is IERC20, Ownable {
     uint256 public marketFee = 5;
     uint256 private _previousMarketFee = marketFee;
 
-    uint256 public lockedBetweenBuys = 15;
-    uint256 public lockedBetweenSells = 15;
+    uint256 public lockedBetweenBuys = 10;
+    uint256 public lockedBetweenSells = 10;
 
     bool private antiBot = true;
-    bool private isInPresale = false;
-    bool private presaleDone = false;
+    bool public isInPresale = false;
+    bool public presaleDone = false;
     bool private pauseMerket = false;
     bool private onlyVipMarket = false;
 
     uint256 private openAllMerketTime;
 
+    uint256 private secondsToOpenMarket;
+
     address marketAddress;
 
-    constructor(address uniswap) {
+    constructor(address uniswap, uint256 openMarketSeconds) {
         require(owner() != address(0), "Nexus: owner must be set");
+        require(openMarketSeconds<=5*60, "Market should no be close more than 5 min" );
 
         _owned[_msgSender()] = _total;
 
@@ -64,7 +67,7 @@ contract Nexus is IERC20, Ownable {
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
         _vipList[owner()] = true;
-
+        secondsToOpenMarket = openMarketSeconds;
         emit Transfer(address(0), _msgSender(), _total);
     }
 
@@ -96,9 +99,11 @@ contract Nexus is IERC20, Ownable {
         _transfer(_msgSender(), recipient, amount);
         return true;
     }
+
     function isExcludedFromFee(address account) public view returns (bool) {
         return _isExcludedFromFee[account];
     }
+
     function approve(address spender, uint256 amount)
         public
         override
@@ -163,14 +168,19 @@ contract Nexus is IERC20, Ownable {
         return true;
     }
 
-
-
-
-
-    function marketStatus() public view onlyOwner returns (bool, bool) {
-        return (pauseMerket, onlyVipMarket);
+    function marketStatus()
+        public
+        view
+        onlyOwner
+        returns (
+            bool,
+            bool,
+            bool,
+            bool
+        )
+    {
+        return (isInPresale, presaleDone, onlyVipMarket, pauseMerket);
     }
-
 
     function isVIP(address vipAddress) public view onlyOwner returns (bool) {
         return _vipList[vipAddress];
@@ -232,11 +242,6 @@ contract Nexus is IERC20, Ownable {
         return onlyVipMarket;
     }
 
-
-
-
-
-
     function excludeFromFee(address account) external onlyOwner {
         _isExcludedFromFee[account] = true;
     }
@@ -250,7 +255,6 @@ contract Nexus is IERC20, Ownable {
 
         emit UpdateAntibotEnabled(antiBot);
     }
-
 
     function setLockTimeBetweenSells(uint256 newLockSeconds)
         external
@@ -300,6 +304,7 @@ contract Nexus is IERC20, Ownable {
         marketFee = newFee;
         emit UpdateMarketFee(marketFee, _previousMarketFee);
     }
+
     function prepareForPreSale() external onlyOwner {
         require(!presaleDone, "Presale already done");
 
@@ -323,13 +328,13 @@ contract Nexus is IERC20, Ownable {
         maxTxAmount = 15000 * 10**_decimals;
         antiBot = true;
 
-        lockedBetweenBuys = 15;
-        lockedBetweenSells = 15;
+        lockedBetweenBuys = 10;
+        lockedBetweenSells = 10;
 
         isInPresale = false;
         presaleDone = true;
 
-        openAllMerketTime = block.timestamp + 5 * 60;
+        openAllMerketTime = block.timestamp.add(secondsToOpenMarket);
     }
 
     function _approve(
@@ -358,7 +363,7 @@ contract Nexus is IERC20, Ownable {
         );
         require(
             !_antibotlist[from] && !_antibotlist[to],
-            "Addresses cannot be antibotlisted"
+            "Addresses is antibotlisted"
         );
 
         uint256 _timestamp = block.timestamp;
@@ -369,7 +374,7 @@ contract Nexus is IERC20, Ownable {
             to == uniswapV2Pair && // Sell
             (from != owner() && from != address(this))
         ) {
-            require(!isInPresale, "Presale not ended");
+            require(presaleDone, "Presale not ended");
 
             takeFee = true;
             if (antiBot) {
@@ -386,9 +391,9 @@ contract Nexus is IERC20, Ownable {
             from == uniswapV2Pair && // Buys
             (to != owner() && to != address(this))
         ) {
-            require(!isInPresale, "Presale not ended");
+            require(presaleDone, "Presale not ended");
 
-            if (onlyVipMarket && openAllMerketTime <= block.timestamp) {
+            if (onlyVipMarket && openAllMerketTime >= block.timestamp) {
                 require(
                     _vipList[to],
                     "This address is not a VIP. Transaction forbidden"
@@ -457,7 +462,6 @@ contract Nexus is IERC20, Ownable {
         emit UpdateMarketFee(marketFee, _previousMarketFee);
     }
 
-
     event UpdateMarketFee(uint256 marketFee, uint256 _previousMarketFee);
     event UpdateMarketAddress(address marketAddress, address previous);
     event UpdateMaxTxAmout(uint256 maxTxAmount, uint256 previous);
@@ -465,4 +469,3 @@ contract Nexus is IERC20, Ownable {
     event UpdateLockedBetweenBuys(uint256 cooldown, uint256 previous);
     event UpdateLockedBetweenSells(uint256 cooldown, uint256 previous);
 }
-

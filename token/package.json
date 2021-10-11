@@ -1,6 +1,7 @@
 {
-  "name": "teste",
+  "name": "token",
   "version": "1.0.0",
+  "description": "{Intro Text HERE}",
   "main": "truffle-config.js",
   "directories": {
     "test": "test"
@@ -10,16 +11,15 @@
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "@openzeppelin/contracts": "^4.2.0",
-    "@openzeppelin/contracts-upgradeable": "^4.1.0",
-    "truffle-flattener": "^1.5.0"
-  },
   "devDependencies": {
-    "@openzeppelin/truffle-upgrades": "^1.8.0",
-    "@truffle/hdwallet-provider": "^1.4.1",
-    "truffle": "^5.1.65",
-    "truffle-plugin-verify": "^0.5.10"
+    "@truffle/hdwallet-provider": "^1.5.1",
+    "chai": "^4.3.4",
+    "chai-bignumber": "^3.0.0",
+    "truffle-assertions": "^0.9.2",
+    "truffle-plugin-verify": "^0.5.15"
   },
-  "description": ""
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.3.2",
+    "bignumber.js": "^9.0.1"
+  }
 }

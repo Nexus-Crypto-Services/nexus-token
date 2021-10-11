@@ -22,7 +22,8 @@
 // const infuraKey = "fj4jll3k.....";
 //
 const fs = require('fs');
-const mnemonic = fs.readFileSync(".secret").toString().trim();
+const testnetMnemonic = fs.readFileSync(".testnetsecret").toString().trim();
+const localMnemonic = fs.readFileSync(".local").toString().trim();
 const apikey = fs.readFileSync(".apikey").toString().trim();
 const HDWalletProvider = require('@truffle/hdwallet-provider');
 module.exports = {
@@ -44,22 +45,27 @@ module.exports = {
     // options below to some value.
     //
     development: {
-     host: "127.0.0.1",     // Localhost (default: none)
-     port: 8545,            // Standard Ethereum port (default: none)
-     network_id: "*",       // Any network (default: none)
-     
-    //  production: true ,
+      host: "127.0.0.1",     // Localhost (default: none)
+      port: 8545,            // Standard Ethereum port (default: none)
+    
+      provider: () => new HDWalletProvider(localMnemonic, `http://127.0.0.1:8545`),
+      network_id: 56,
+      confirmations: 1,
+      timeoutBlocks: 30,
+      defaltBloc: "latest",
+      skipDryRun: false,
       gas: 6721975,           // Gas sent with each transaction (default: ~6700000)
-    gasPrice: 20000000000,
+      gasLimit: 9007199254740991,
+      gasPrice: 20000000000,  // 20 gwei (in wei) (default: 100 gwei)
 
     },
     testnet: {
-      provider: () => new HDWalletProvider( mnemonic, `wss://data-seed-prebsc-2-s1.binance.org:8545`),
+      provider: () => new HDWalletProvider(testnetMnemonic, `wss://data-seed-prebsc-2-s1.binance.org:8545`),
       network_id: 97,
       confirmations: 2,
       timeoutBlocks: 200,
       skipDryRun: true,
-     },
+    },
     // Another network with more advanced options...
     // advanced: {
     // port: 8777,             // Custom port
@@ -89,7 +95,7 @@ module.exports = {
 
   // Set default mocha options here, use special reporters etc.
   mocha: {
-    // timeout: 100000
+    // timeout: 10*60*1000
   },
 
   // Configure your compilers
@@ -98,15 +104,15 @@ module.exports = {
       version: "0.8.4",    // Fetch exact version from solc-bin (default: truffle's version)
       // docker: true,        // Use "0.5.1" you've installed locally with docker (default: false)
       settings: {          // See the solidity docs for advice about optimization and evmVersion
-       optimizer: {
-         enabled: true,
-         runs: 200
-       },
-   
+        optimizer: {
+          enabled: true,
+          runs: 200
+        },
+
       }
     }
   },
- 
+
   // Truffle DB is currently disabled by default; to enable it, change enabled: false to enabled: true
   //
   // Note: if you migrated your contracts prior to enabling this field in your Truffle project and want
@@ -120,7 +126,7 @@ module.exports = {
     'truffle-plugin-verify'
   ],
   api_keys: {
-    
+
     bscscan: apikey,
   }
 };
