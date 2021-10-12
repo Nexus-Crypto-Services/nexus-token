@@ -16,14 +16,13 @@ contract Nexus is IERC20, Ownable {
     address public constant deadAddress =
         0x000000000000000000000000000000000000dEaD;
 
-    string private constant _name = "NEXUS";
+    string private constant _name = "Nexus Token";
     string private constant _symbol = "$NEXUS";
 
     mapping(address => mapping(address => uint256)) private _allowances;
     mapping(address => bool) private _isExcludedFromFee;
     mapping(address => uint256) private _addressToLastSwapTime;
     mapping(address => bool) private _vipList;
-    mapping(address => bool) private _AntibotList;
     mapping(address => uint256) private _owned;
 
     uint8 private _decimals = 18;
@@ -190,21 +189,11 @@ contract Nexus is IERC20, Ownable {
         return _vipList[vipAddress];
     }
 
-    function isAntibotListed(address AntibotListAddress)
-        public
-        view
-        onlyOwner
-        returns (bool)
-    {
-        return _AntibotList[AntibotListAddress];
-    }
-
     function addToVIP(address[] memory vipAddress) public onlyOwner {
         for (uint256 i = 0; i < vipAddress.length; i++) {
             address vip = vipAddress[i];
-            if (!_AntibotList[vip]) {
-                _vipList[vip] = true;
-            }
+
+            _vipList[vip] = true;
         }
     }
 
@@ -212,27 +201,6 @@ contract Nexus is IERC20, Ownable {
         for (uint256 i = 0; i < vipAddress.length; i++) {
             address vip = vipAddress[i];
             _vipList[vip] = false;
-        }
-    }
-
-    function addToAntibotList(address[] memory AntibotListAddress)
-        public
-        onlyOwner
-    {
-        removeFromVIP(AntibotListAddress);
-        for (uint256 i = 0; i < AntibotListAddress.length; i++) {
-            address AntibotList = AntibotListAddress[i];
-            _AntibotList[AntibotList] = true;
-        }
-    }
-
-    function removeFromAntibotList(address[] memory AntibotListAddress)
-        public
-        onlyOwner
-    {
-        for (uint256 i = 0; i < AntibotListAddress.length; i++) {
-            address AntibotList = AntibotListAddress[i];
-            _AntibotList[AntibotList] = false;
         }
     }
 
@@ -382,10 +350,7 @@ contract Nexus is IERC20, Ownable {
             !pauseMerket,
             "The Market is paused, transactions are not allowed"
         );
-        require(
-            !_AntibotList[from] && !_AntibotList[to],
-            "Addresses is AntibotListed"
-        );
+
 
         uint256 _timestamp = block.timestamp;
 
@@ -498,6 +463,5 @@ contract Nexus is IERC20, Ownable {
     event UpdateLockedBetweenBuys(uint256 cooldown, uint256 previous);
     event UpdateLockedBetweenSells(uint256 cooldown, uint256 previous);
     event UpdatePancakeRouter(IUniswapV2Router02 router, address pair);
-
     event UpdatePresaleAddress(address presaleAddress);
 }
