@@ -55,7 +55,7 @@ contract Nexus is IERC20, Ownable {
         require(owner() != address(0), "Nexus: owner must be set");
         require(
             openMarketSeconds <= 5 * 60,
-            "Market should no be close more than 5 min"
+            "openMarketSeconds must be under 5 minutes"
         );
 
         _owned[_msgSender()] = _total;
