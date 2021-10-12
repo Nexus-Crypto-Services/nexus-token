@@ -35,7 +35,7 @@ contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
             expect(await this.nexus.isVIP(vip, { from: owner })).to.equal(true);
         })
         // add botlist
-        await this.nexus.addToantibotlist([bot], { from: owner })
+        await this.nexus.addToAntibotList([bot], { from: owner })
         expect(await this.nexus.isAntibotListed(bot, { from: owner })).to.equal(true);
 
         // Prepare the contract for pre-sale and check the maximum amount and state
@@ -52,7 +52,7 @@ contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
 
     it('Buy before presale ends', async function () {
 
-
+        // Try to do a transaction before pre-sale ends
         await truffleAssert.reverts(
             this.router.swapExactETHForTokensSupportingFeeOnTransferTokens(
                 0,
@@ -69,11 +69,13 @@ contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
 
     it('Public Sale With VIP list', async function () {
 
+
+        // Finish pre-sale to start the sale 
         await this.nexus.afterPreSale({ from: owner });
         console.log(await this.nexus.marketStatus())
 
-        // expect(await this.nexus.marketStatus()).to.equal((false, true, true, false));
-
+        // Make a VIP transactions
+        // Buy
         await truffleAssert.passes(
             this.router.swapExactETHForTokensSupportingFeeOnTransferTokens(
                 0,
@@ -81,8 +83,36 @@ contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
                 vip1,
                 Math.floor(Date.now() / 1000) + 60 * 10,
                 { from: vip1, value: new BN("1000000000000000") })
+        );
+        console.log("Waiting 10 seconds")
+        await new Promise(resolve => setTimeout(resolve, 1000 * 10));
+        console.log("Done Waiting")
+        // Sell
+        await this.nexus.approve(this.router.address, new BN("2000000000000000000000000"), { from: vip1 });
+        await truffleAssert.passes(
+            this.router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+                BN("1000000000000000000"),
+                0,
+                [this.nexus.address, await this.router.WETH()],
+                vip1,
+                Math.floor(Date.now() / 1000) + 60 * 10,
+                { from: vip1, })
         )
 
+        // remove from VIP and try the transaction: should fail
+        await this.nexus.removeFromVIP([vip1], { from: owner })
+        expect(await this.nexus.isVIP(vip1, { from: owner })).to.equal(false);
+        await truffleAssert.reverts(
+            this.router.swapExactETHForTokensSupportingFeeOnTransferTokens(
+                0,
+                [await this.router.WETH(), this.nexus.address],
+                vip1,
+                Math.floor(Date.now() / 1000) + 60 * 10,
+                { from: vip1, value: new BN("1000000000000000") }),
+            "Pancake: TRANSFER_FAILED",
+        )
+
+        // Make a normal transaction on VIP market: should fail
         await truffleAssert.reverts(
             this.router.swapExactETHForTokensSupportingFeeOnTransferTokens(
                 0,
@@ -93,9 +123,11 @@ contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
 
             "Pancake: TRANSFER_FAILED",
         );
-
+    })
+    it('After VIP ends', async function () {
+        // Wait for market to open in time
         console.log("Waiting")
-        await new Promise(resolve => setTimeout(resolve, 1000 * 80));
+        await new Promise(resolve => setTimeout(resolve, 1000 * 60));
         console.log("Done Waiting")
         await truffleAssert.passes(
             this.router.swapExactETHForTokensSupportingFeeOnTransferTokens(
@@ -105,8 +137,23 @@ contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
                 Math.floor(Date.now() / 1000) + 60 * 10,
                 { from: other, value: new BN("1000000000000000") })
         )
+        console.log("Waiting 10 seconds")
+        await new Promise(resolve => setTimeout(resolve, 1000 * 10));
+        console.log("Done Waiting")
+        await this.nexus.approve(this.router.address, new BN("2000000000000000000000000"), { from: other })
+        await truffleAssert.passes(
+            this.router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+                BN("1000000000000000000"),
+                0,
+                [this.nexus.address, await this.router.WETH()],
+                other,
+                Math.floor(Date.now() / 1000) + 60 * 10,
+                { from: other })
+        )
 
     });
+
+
     it('Time Between buys and sells', async function () {
         console.log("Waiting 10 seconds")
         await new Promise(resolve => setTimeout(resolve, 1000 * 10));
@@ -130,6 +177,7 @@ contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
         );
         await pass;
         await revert;
+
         // Use large integer comparisons
         // expect(await this.nexus.name( )).to.equal("Nexus");
     });
@@ -146,6 +194,33 @@ contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
 
             "Pancake: TRANSFER_FAILED",
         );
+
+        // add botlist
+        await this.nexus.removeFromAntibotList([bot], { from: owner })
+        expect(await this.nexus.isAntibotListed(bot, { from: owner })).to.equal(false);
+
+        await truffleAssert.passes(
+            this.router.swapExactETHForTokensSupportingFeeOnTransferTokens(
+                0,
+                [await this.router.WETH(), this.nexus.address],
+                bot,
+                Math.floor(Date.now() / 1000) + 60 * 10,
+                { from: bot, value: new BN("1000000000000000") }),
+
+        );
+        console.log("Waiting 10 seconds")
+        await new Promise(resolve => setTimeout(resolve, 1000 * 10));
+        console.log("Done Waiting")
+        await this.nexus.approve(this.router.address, new BN("2000000000000000000000000"), { from: bot })
+        await truffleAssert.passes(
+            this.router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+                BN("1000000000000000000"),
+                0,
+                [this.nexus.address, await this.router.WETH()],
+                bot,
+                Math.floor(Date.now() / 1000) + 60 * 10,
+                { from: bot })
+        )
         // Use large integer comparisons
         // expect(await this.nexus.name( )).to.equal("Nexus");
     });

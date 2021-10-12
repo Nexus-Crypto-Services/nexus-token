@@ -23,7 +23,7 @@ contract Nexus is IERC20, Ownable {
     mapping(address => bool) private _isExcludedFromFee;
     mapping(address => uint256) private _addressToLastSwapTime;
     mapping(address => bool) private _vipList;
-    mapping(address => bool) private _antibotlist;
+    mapping(address => bool) private _AntibotList;
     mapping(address => uint256) private _owned;
 
     uint8 private _decimals = 18;
@@ -53,7 +53,10 @@ contract Nexus is IERC20, Ownable {
 
     constructor(address uniswap, uint256 openMarketSeconds) {
         require(owner() != address(0), "Nexus: owner must be set");
-        require(openMarketSeconds<=5*60, "Market should no be close more than 5 min" );
+        require(
+            openMarketSeconds <= 5 * 60,
+            "Market should no be close more than 5 min"
+        );
 
         _owned[_msgSender()] = _total;
 
@@ -186,19 +189,19 @@ contract Nexus is IERC20, Ownable {
         return _vipList[vipAddress];
     }
 
-    function isAntibotListed(address antibotlistAddress)
+    function isAntibotListed(address AntibotListAddress)
         public
         view
         onlyOwner
         returns (bool)
     {
-        return _antibotlist[antibotlistAddress];
+        return _AntibotList[AntibotListAddress];
     }
 
     function addToVIP(address[] memory vipAddress) public onlyOwner {
         for (uint256 i = 0; i < vipAddress.length; i++) {
             address vip = vipAddress[i];
-            if (!_antibotlist[vip]) {
+            if (!_AntibotList[vip]) {
                 _vipList[vip] = true;
             }
         }
@@ -211,24 +214,24 @@ contract Nexus is IERC20, Ownable {
         }
     }
 
-    function addToantibotlist(address[] memory antibotlistAddress)
+    function addToAntibotList(address[] memory AntibotListAddress)
         public
         onlyOwner
     {
-        removeFromVIP(antibotlistAddress);
-        for (uint256 i = 0; i < antibotlistAddress.length; i++) {
-            address antibotlist = antibotlistAddress[i];
-            _antibotlist[antibotlist] = true;
+        removeFromVIP(AntibotListAddress);
+        for (uint256 i = 0; i < AntibotListAddress.length; i++) {
+            address AntibotList = AntibotListAddress[i];
+            _AntibotList[AntibotList] = true;
         }
     }
 
-    function removeFromantibotlist(address[] memory antibotlistAddress)
+    function removeFromAntibotList(address[] memory AntibotListAddress)
         public
         onlyOwner
     {
-        for (uint256 i = 0; i < antibotlistAddress.length; i++) {
-            address antibotlist = antibotlistAddress[i];
-            _antibotlist[antibotlist] = false;
+        for (uint256 i = 0; i < AntibotListAddress.length; i++) {
+            address AntibotList = AntibotListAddress[i];
+            _AntibotList[AntibotList] = false;
         }
     }
 
@@ -362,8 +365,8 @@ contract Nexus is IERC20, Ownable {
             "The Market is paused, transactions are not allowed"
         );
         require(
-            !_antibotlist[from] && !_antibotlist[to],
-            "Addresses is antibotlisted"
+            !_AntibotList[from] && !_AntibotList[to],
+            "Addresses is AntibotListed"
         );
 
         uint256 _timestamp = block.timestamp;
@@ -375,7 +378,12 @@ contract Nexus is IERC20, Ownable {
             (from != owner() && from != address(this))
         ) {
             require(presaleDone, "Presale not ended");
-
+            if (onlyVipMarket && openAllMerketTime >= block.timestamp) {
+                require(
+                    _vipList[from],
+                    "This address is not a VIP. Transaction forbidden"
+                );
+            }
             takeFee = true;
             if (antiBot) {
                 uint256 lastSwapTime = _addressToLastSwapTime[from];
