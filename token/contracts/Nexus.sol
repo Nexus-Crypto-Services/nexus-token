@@ -16,7 +16,7 @@ contract Nexus is IERC20, Ownable {
     address public constant deadAddress =
         0x000000000000000000000000000000000000dEaD;
 
-    string private constant _name = "Nexus";
+    string private constant _name = "NEXUS";
     string private constant _symbol = "$NEXUS";
 
     mapping(address => mapping(address => uint256)) private _allowances;
@@ -45,11 +45,12 @@ contract Nexus is IERC20, Ownable {
     bool private pauseMerket = false;
     bool private onlyVipMarket = false;
 
-    uint256 private openAllMerketTime;
+    uint256 private openAllMarketTime;
 
     uint256 private secondsToOpenMarket;
 
     address marketAddress;
+    address presaleAddress;
 
     constructor(address uniswap, uint256 openMarketSeconds) {
         require(owner() != address(0), "Nexus: owner must be set");
@@ -289,16 +290,33 @@ contract Nexus is IERC20, Ownable {
 
     function setRouterAddress(address newRouter) public onlyOwner {
         IUniswapV2Router02 _newPancakeRouter = IUniswapV2Router02(newRouter);
+        IUniswapV2Factory factory = IUniswapV2Factory(
+            _newPancakeRouter.factory()
+        );
+        address pair = factory.getPair(address(this), _newPancakeRouter.WETH());
+        if (pair == address(0)) {
+            uniswapV2Pair = factory.createPair(
+                address(this),
+                _newPancakeRouter.WETH()
+            );
+        } else {
+            uniswapV2Pair = pair;
+        }
 
-        uniswapV2Pair = IUniswapV2Factory(_newPancakeRouter.factory())
-            .createPair(address(this), _newPancakeRouter.WETH());
         uniswapV2Router = _newPancakeRouter;
+
+        emit UpdatePancakeRouter(uniswapV2Router, uniswapV2Pair);
     }
 
     function setMarketAddress(address market) public onlyOwner {
         address _previousMarketAddress = marketAddress;
         marketAddress = market;
         emit UpdateMarketAddress(marketAddress, _previousMarketAddress);
+    }
+
+    function setPresaleAddress(address presale) public onlyOwner {
+        presaleAddress = presale;
+        emit UpdatePresaleAddress(presaleAddress);
     }
 
     function setMarketFeePercent(uint256 newFee) external onlyOwner {
@@ -328,7 +346,7 @@ contract Nexus is IERC20, Ownable {
 
         restoreAllFee();
 
-        maxTxAmount = 15000 * 10**_decimals;
+        maxTxAmount = 16000 * 10**_decimals;
         antiBot = true;
 
         lockedBetweenBuys = 10;
@@ -337,7 +355,7 @@ contract Nexus is IERC20, Ownable {
         isInPresale = false;
         presaleDone = true;
 
-        openAllMerketTime = block.timestamp.add(secondsToOpenMarket);
+        openAllMarketTime = block.timestamp.add(secondsToOpenMarket);
     }
 
     function _approve(
@@ -375,10 +393,12 @@ contract Nexus is IERC20, Ownable {
 
         if (
             to == uniswapV2Pair && // Sell
-            (from != owner() && from != address(this))
+            (from != owner() && from != address(this) && from != marketAddress)
         ) {
-            require(presaleDone, "Presale not ended");
-            if (onlyVipMarket && openAllMerketTime >= block.timestamp) {
+            if (from != presaleAddress) {
+                require(presaleDone, "Presale not ended");
+            }
+            if (onlyVipMarket && openAllMarketTime >= block.timestamp) {
                 require(
                     _vipList[from],
                     "This address is not a VIP. Transaction forbidden"
@@ -397,11 +417,12 @@ contract Nexus is IERC20, Ownable {
 
         if (
             from == uniswapV2Pair && // Buys
-            (to != owner() && to != address(this))
+            (to != owner() && to != address(this) && to != marketAddress)
         ) {
-            require(presaleDone, "Presale not ended");
-
-            if (onlyVipMarket && openAllMerketTime >= block.timestamp) {
+            if (to != presaleAddress) {
+                require(presaleDone, "Presale not ended");
+            }
+            if (onlyVipMarket && openAllMarketTime >= block.timestamp) {
                 require(
                     _vipList[to],
                     "This address is not a VIP. Transaction forbidden"
@@ -476,4 +497,7 @@ contract Nexus is IERC20, Ownable {
     event UpdateAntibotEnabled(bool enabled);
     event UpdateLockedBetweenBuys(uint256 cooldown, uint256 previous);
     event UpdateLockedBetweenSells(uint256 cooldown, uint256 previous);
+    event UpdatePancakeRouter(IUniswapV2Router02 router, address pair);
+
+    event UpdatePresaleAddress(address presaleAddress);
 }
