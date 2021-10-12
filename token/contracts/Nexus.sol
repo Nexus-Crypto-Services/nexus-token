@@ -41,7 +41,7 @@ contract Nexus is IERC20, Ownable {
     bool private antiBot = true;
     bool public isInPresale = false;
     bool public presaleDone = false;
-    bool private pauseMerket = false;
+    bool private pauseMarket = false;
     bool private onlyVipMarket = false;
 
     uint256 private openAllMarketTime;
@@ -182,7 +182,7 @@ contract Nexus is IERC20, Ownable {
             bool
         )
     {
-        return (isInPresale, presaleDone, onlyVipMarket, pauseMerket);
+        return (isInPresale, presaleDone, onlyVipMarket, pauseMarket);
     }
 
     function isVIP(address vipAddress) public view onlyOwner returns (bool) {
@@ -205,8 +205,8 @@ contract Nexus is IERC20, Ownable {
     }
 
     function togglePauseMarket() public onlyOwner returns (bool) {
-        pauseMerket = !pauseMerket;
-        return pauseMerket;
+        pauseMarket = !pauseMarket;
+        return pauseMarket;
     }
 
     function toggleVipMarket() public onlyOwner returns (bool) {
@@ -347,7 +347,7 @@ contract Nexus is IERC20, Ownable {
 
         require(amount > 0, "Transfer amount must be greater than zero");
         require(
-            !pauseMerket,
+            !pauseMarket,
             "The Market is paused, transactions are not allowed"
         );
 
