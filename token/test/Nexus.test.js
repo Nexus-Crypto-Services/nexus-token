@@ -13,7 +13,7 @@ const uniswapRouterAddress = "0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3"; // Te
 // const uniswapRouterAddress ="0x10ED43C718714eb63d5aA57B78B54704E256024E" ; // Mainnet
 
 
-contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
+contract("Nexus", function ([owner, vip1, vip2, vip3, other]) {
     const ethLiqInitial = new BN("10000000000000000");
     const nexusLiqInitial = new BN("10000000000000000000000");
 
@@ -34,9 +34,7 @@ contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
         vips.forEach(async (vip) => {
             expect(await this.nexus.isVIP(vip, { from: owner })).to.equal(true);
         })
-        // add botlist
-        await this.nexus.addToAntibotList([bot], { from: owner })
-        expect(await this.nexus.isAntibotListed(bot, { from: owner })).to.equal(true);
+
 
         // Prepare the contract for pre-sale and check the maximum amount and state
         await this.nexus.approve(this.router.address, new BN("2000000000000000000000000"), { from: owner })
@@ -182,46 +180,5 @@ contract("Nexus", function ([owner, vip1, vip2, vip3, other, bot]) {
         // expect(await this.nexus.name( )).to.equal("Nexus");
     });
 
-    it('Aintibot list ', async function () {
-
-        await truffleAssert.reverts(
-            this.router.swapExactETHForTokensSupportingFeeOnTransferTokens(
-                0,
-                [await this.router.WETH(), this.nexus.address],
-                bot,
-                Math.floor(Date.now() / 1000) + 60 * 10,
-                { from: bot, value: new BN("1000000000000000") }),
-
-            "Pancake: TRANSFER_FAILED",
-        );
-
-        // add botlist
-        await this.nexus.removeFromAntibotList([bot], { from: owner })
-        expect(await this.nexus.isAntibotListed(bot, { from: owner })).to.equal(false);
-
-        await truffleAssert.passes(
-            this.router.swapExactETHForTokensSupportingFeeOnTransferTokens(
-                0,
-                [await this.router.WETH(), this.nexus.address],
-                bot,
-                Math.floor(Date.now() / 1000) + 60 * 10,
-                { from: bot, value: new BN("1000000000000000") }),
-
-        );
-        console.log("Waiting 10 seconds")
-        await new Promise(resolve => setTimeout(resolve, 1000 * 10));
-        console.log("Done Waiting")
-        await this.nexus.approve(this.router.address, new BN("2000000000000000000000000"), { from: bot })
-        await truffleAssert.passes(
-            this.router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-                BN("1000000000000000000"),
-                0,
-                [this.nexus.address, await this.router.WETH()],
-                bot,
-                Math.floor(Date.now() / 1000) + 60 * 10,
-                { from: bot })
-        )
-        // Use large integer comparisons
-        // expect(await this.nexus.name( )).to.equal("Nexus");
-    });
+   
 })

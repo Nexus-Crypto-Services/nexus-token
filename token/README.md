@@ -36,8 +36,7 @@ Deploy the contract and copy its address
     let accounts = await web3.eth.getAccounts()
 
     let pcs = IUniswapV2Pair.at("0xD99D1c33F9fC3444f8101754aBC46c52416550D1")
-
-    
+   
 
 You can call any contract function after that
 
@@ -49,20 +48,20 @@ You can call any contract function after that
 2. Deploy the contract running the migration command
    
         npx truffle migrate --network {NetworkName} --to 1
-    
-3. Verify the contract running the verification command
+
+3. Activate the function `prepareForPreSale` so all taxes get turned off
+4. Change the marketing wallet for the correct one adn exclude from fee using `excludeFromFee`
+5. Fill the VIP list with all the VIP, Whitelist and private-sale addresses using `addToVIP`
+6. Create the pre-sale in [PinkSale](https://www.pinksale.finance/) filling all the information, whitelist and paying the fee
+7. Set the pre-sale Address 
+8. After pre-sale is finalized and liquidity is created no one will be able to buy or sell yet. To officially open the VIP market call `afterPreSale`
+9. Let it pass some good 30 seconds and then disable the VIP market using `toggleVipMarket`. At this point anybody will be able to buy and sell
+10. After guarantee that everything is running smoothly transfer the contract to gnosis safe
+11. Verify the contract running the verification command
 
         npx truffle run verify {ContractClassName}@{ContractAddress} --network {NetworkName}
 
-4. Activate the function `prepareForPreSale` so all taxes get turned off
-5. Change the marketing wallet for the correct one adn exclude from fee using `excludeFromFee`
-6. Fill the VIP list with all the VIP, Whitelist and private-sale addresses using `addToVIP`
-7. Create the pre-sale in [PinkSale](https://www.pinksale.finance/) filling all the information, whitelist and paying the fee
-8. Set the presale Address 
-9. After pre-sale is finalized and liquidity is created no one will be able to buy or sell yet. To officially open the VIP market call `afterPreSale`
-10. Let it pass some good 30 seconds and then disable the VIP market using `toggleVipMarket`. At this point anybody will be able to buy and sell
-11. After guarantee that everything is running smoothly transfer the contract to gnosis safe
-
+    
 **IMPORTANT: DON'T FORGET TO LOWER THE MAX TX AMOUNT AS THE PRICE GOES UP AND RAISE IT AS THE PRICE GOES DOWN! MAKE SURE THE CORRECT UNISWAP ROUTER IS IN USE!** 
 
 <br>
@@ -92,12 +91,6 @@ These two functions enable ease of operation during the critical phase of pre-sa
 `afterPreSale`: This will enable the VPI market, restore fees and anti-bot and enable buys and sells on PCS.
 
 This sequence of functions can only be called once so be careful not to call it before time.
-
-### AntiBot
-
-The anti-bot features is a set of functionalities designed to prevent frontrunning and bot buy-sell attacks. This happens in two ways. First there is a cool down period of 10 seconds between buy and sell transaction that don't allow the same wallet to make two buy or sell transactions under 10 seconds. Secondly there is a max limit for buys and sells that is kep low at the first hours of market in order to increase the transaction costs of a buy-sell attack.
-
-It is important to remember that there is a anti-bot list in place that will blacklist any bot if the dev choses so. However all the tokens in possession of a bot can be considered burned tokens since it cannot do transactions anymore.
 
 ### VPI Market
 

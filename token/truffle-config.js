@@ -24,6 +24,7 @@
 const fs = require('fs');
 const testnetMnemonic = fs.readFileSync(".testnetsecret").toString().trim();
 const localMnemonic = fs.readFileSync(".local").toString().trim();
+const mainnetMnemonic = fs.readFileSync(".secret").toString().trim();
 const apikey = fs.readFileSync(".apikey").toString().trim();
 const HDWalletProvider = require('@truffle/hdwallet-provider');
 module.exports = {
@@ -62,7 +63,14 @@ module.exports = {
     testnet: {
       provider: () => new HDWalletProvider(testnetMnemonic, `wss://data-seed-prebsc-2-s1.binance.org:8545`),
       network_id: 97,
-      confirmations: 2,
+      confirmations: 10,
+      timeoutBlocks: 200,
+      skipDryRun: true,
+    },
+    mainnet: {
+      provider: () => new HDWalletProvider(mainnetMnemonic, `https://bsc-dataseed1.defibit.io`),
+      network_id: 56,
+      confirmations: 10,
       timeoutBlocks: 200,
       skipDryRun: true,
     },

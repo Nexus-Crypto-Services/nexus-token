@@ -25,8 +25,8 @@ contract Nexus is IERC20, Ownable {
     mapping(address => bool) private _vipList;
     mapping(address => uint256) private _owned;
 
-    uint8 private _decimals = 18;
-    uint256 private _total = 10000000 * 10**_decimals;
+    uint8 private constant _decimals = 18;
+    uint256 private constant _total = 10000000 * 10**_decimals;
     uint256 public maxTxAmount = 100000 * 10**_decimals;
 
     IUniswapV2Router02 public uniswapV2Router;
@@ -52,7 +52,7 @@ contract Nexus is IERC20, Ownable {
     address presaleAddress;
 
     constructor(address uniswap, uint256 openMarketSeconds) {
-        require(owner() != address(0), "Nexus: owner must be set");
+        require(owner() != address(0), "Owner must be set");
         require(
             openMarketSeconds <= 5 * 60,
             "openMarketSeconds must be under 5 minutes"
@@ -82,11 +82,11 @@ contract Nexus is IERC20, Ownable {
         return _symbol;
     }
 
-    function decimals() public view returns (uint8) {
+    function decimals() public pure returns (uint8) {
         return _decimals;
     }
 
-    function totalSupply() public view override returns (uint256) {
+    function totalSupply() public pure override returns (uint256) {
         return _total;
     }
 
@@ -95,7 +95,7 @@ contract Nexus is IERC20, Ownable {
     }
 
     function transfer(address recipient, uint256 amount)
-        public
+        external
         override
         returns (bool)
     {
@@ -103,12 +103,12 @@ contract Nexus is IERC20, Ownable {
         return true;
     }
 
-    function isExcludedFromFee(address account) public view returns (bool) {
+    function isExcludedFromFee(address account) external view returns (bool) {
         return _isExcludedFromFee[account];
     }
 
     function approve(address spender, uint256 amount)
-        public
+        external
         override
         returns (bool)
     {
@@ -120,7 +120,7 @@ contract Nexus is IERC20, Ownable {
         address sender,
         address recipient,
         uint256 amount
-    ) public override returns (bool) {
+    ) external override returns (bool) {
         _transfer(sender, recipient, amount);
         _approve(
             sender,
@@ -134,7 +134,7 @@ contract Nexus is IERC20, Ownable {
     }
 
     function allowance(address owner, address spender)
-        public
+        external
         view
         override
         returns (uint256)
@@ -143,7 +143,7 @@ contract Nexus is IERC20, Ownable {
     }
 
     function increaseAllowance(address spender, uint256 addedValue)
-        public
+        external
         virtual
         returns (bool)
     {
@@ -156,7 +156,7 @@ contract Nexus is IERC20, Ownable {
     }
 
     function decreaseAllowance(address spender, uint256 subtractedValue)
-        public
+        external
         virtual
         returns (bool)
     {
@@ -172,7 +172,7 @@ contract Nexus is IERC20, Ownable {
     }
 
     function marketStatus()
-        public
+        external
         view
         onlyOwner
         returns (
@@ -185,11 +185,11 @@ contract Nexus is IERC20, Ownable {
         return (isInPresale, presaleDone, onlyVipMarket, pauseMarket);
     }
 
-    function isVIP(address vipAddress) public view onlyOwner returns (bool) {
+    function isVIP(address vipAddress) external view onlyOwner returns (bool) {
         return _vipList[vipAddress];
     }
 
-    function addToVIP(address[] memory vipAddress) public onlyOwner {
+    function addToVIP(address[] memory vipAddress) external onlyOwner {
         for (uint256 i = 0; i < vipAddress.length; i++) {
             address vip = vipAddress[i];
 
@@ -197,19 +197,19 @@ contract Nexus is IERC20, Ownable {
         }
     }
 
-    function removeFromVIP(address[] memory vipAddress) public onlyOwner {
+    function removeFromVIP(address[] memory vipAddress) external onlyOwner {
         for (uint256 i = 0; i < vipAddress.length; i++) {
             address vip = vipAddress[i];
             _vipList[vip] = false;
         }
     }
 
-    function togglePauseMarket() public onlyOwner returns (bool) {
+    function togglePauseMarket() external onlyOwner returns (bool) {
         pauseMarket = !pauseMarket;
         return pauseMarket;
     }
 
-    function toggleVipMarket() public onlyOwner returns (bool) {
+    function toggleVipMarket() external onlyOwner returns (bool) {
         onlyVipMarket = !onlyVipMarket;
         return onlyVipMarket;
     }
@@ -256,7 +256,7 @@ contract Nexus is IERC20, Ownable {
         maxTxAmount = newMaxTxAmount;
     }
 
-    function setRouterAddress(address newRouter) public onlyOwner {
+    function setRouterAddress(address newRouter) external onlyOwner {
         IUniswapV2Router02 _newPancakeRouter = IUniswapV2Router02(newRouter);
         IUniswapV2Factory factory = IUniswapV2Factory(
             _newPancakeRouter.factory()
@@ -276,13 +276,13 @@ contract Nexus is IERC20, Ownable {
         emit UpdatePancakeRouter(uniswapV2Router, uniswapV2Pair);
     }
 
-    function setMarketAddress(address market) public onlyOwner {
+    function setMarketAddress(address market) external onlyOwner {
         address _previousMarketAddress = marketAddress;
         marketAddress = market;
         emit UpdateMarketAddress(marketAddress, _previousMarketAddress);
     }
 
-    function setPresaleAddress(address presale) public onlyOwner {
+    function setPresaleAddress(address presale) external onlyOwner {
         presaleAddress = presale;
         emit UpdatePresaleAddress(presaleAddress);
     }
